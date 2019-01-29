@@ -1,0 +1,98 @@
+```{r}
+library(knitr)
+```
+
+```{r}
+data <- read.csv("uval.csv")
+```
+
+# Question 1
+
+```{r}
+lm.fit.1 <- lm(growth ~ underval + log(gdp), data = data)
+
+kable(coef(summary(lm.fit.1)),
+      digits = 5, caption = "Coefficients & Std. Error of linear model")
+```
+
+Since the coeficient of $log(gdp)$ is positive, this model does not seem to support the idea of "catching-up" as countries with higher GDP have a higher economic growth rate. However, it does support the idea that under-valuing a currency boosts economic growth as the coefficient of $underval$ is positive, indicating a positive $underval$ index, which represents undervaluing, leads to higher economic growth.
+
+# Question 2
+
+**Q2 a)**
+
+```{r}
+lm.fit.2 <- lm(growth ~ underval + log(gdp) + factor(country) + factor(year),
+               data = data)
+
+kable(coef(summary(lm.fit.2))[2:3, ],
+      digits = 5, caption = "Coefficients & Std. Error of linear model")
+```
+
+**Q2 b)**
+It is more appropriate to use `factor(year)` as there are only unique years that are 5 years apart. As such, modelling this way we will have a slope for each 5-year interval rather than a single slope for each increment of year.
+
+**Q2 c)**
+
+```{r}
+plot(unique(data$year), c(0, coef(lm.fit.2)[182:190]),
+     xlab = "Year", ylab = "Coefficient",
+     main = "Plot of coefficient of each year across years")
+```
+
+**Q2 d)**
+
+Since the coeficient of $log(gdp)$ is positive, this model does not seem to support the idea of "catching-up" as countries with higher GDP have a higher economic growth rate. However, it does support the idea that under-valuing a currency boosts economic growth as the coefficient of $underval$ is positive, indicating a positive $underval$ index, which represents undervaluing, leads to higher economic growth.
+
+# Question 3
+
+**Q3 a)**
+
+```{r}
+lm.r.squareds <- matrix(nrow = 2, ncol = 2)
+rownames(lm.r.squareds) <- c("$R^2$", "Adj. $R^2$")
+colnames(lm.r.squareds) <- c("Model 1", "Model 2")
+lm.r.squareds[, 1] <- with(summary(lm.fit.1), c(r.squared, adj.r.squared))
+lm.r.squareds[, 2] <- with(summary(lm.fit.2), c(r.squared, adj.r.squared))
+
+kable(lm.r.squareds, digits = 5,
+      caption = "$R^2$ values for each linear model")
+```
+
+**Q3 b)**
+
+```{r}
+# Taken from textbook chapter 3 page 77
+cv.lm <- function(data, formulae, nfolds = 5) {
+    data <- na.omit(data)
+    formulae <- sapply(formulae, as.formula)
+    n <- nrow(data)
+    fold.labels <- sample(rep(1:nfolds, length.out = n))
+    mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+    colnames <- as.character(formulae)
+    for (fold in 1:nfolds) {
+        test.rows <- which(fold.labels == fold)
+        train <- data[-test.rows, ]
+        test <- data[test.rows, ]
+        for (form in 1:length(formulae)) {
+            current.model <- lm(formula = formulae[[form]], data = train)
+            predictions <- predict(current.model, newdata = test)
+            test.responses <- eval(formulae[[form]][[2]], envir = test)
+            test.errors <- test.responses - predictions
+            mses[fold, form] <- mean(test.errors^2)
+        }
+    }
+    return(colMeans(mses))
+}
+```
+
+```{r cache=TRUE}
+loocv.mse <- cv.lm(data, c("growth ~ underval + log(gdp)", "growth ~ underval + log(gdp) + factor(country) + factor(year)"), nfolds = nrow(data))
+```
+
+```{r}
+names(loocv.mse) <- c("Model 1", "Model 2")
+kable(loocv.mse, caption = "$\\hat{MSE}$ of linear models by LOOCV")
+```
+
+
