@@ -1,0 +1,300 @@
+---
+title: "36-402 Homework 1"
+author:
+- Eu Jing Chua
+- eujingc
+date: "January 20, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+    - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+# Question 1
+
+```{r}
+library(knitr)
+library(gamair)
+data(chicago)
+```
+
+```{r}
+options(digits = 6)
+kable(summary(chicago),
+      caption = "Summary of of data")
+```
+
+**1 a)** The temperature is given in Fahrenheit.
+
+**1 b)** This indicates the data has probably been log-transformed as it does not make sense to have a negative density of particles.
+
+# Question 2
+
+**Q2 a)**
+
+```{r}
+# From the homwork hint
+day.zero <- as.Date("1993-12-31")
+chicago$date <- day.zero + chicago$time
+
+plot(death ~ date, data = chicago,
+     type = "l", lwd = 0.3, col = "blue",
+     xlab = "Calendar Date", ylab = "Deaths",
+     main = "Number of deaths against time")
+```
+
+There seems to be a seasonal, roughly sinusoidal pattern to the number of deaths across time, where the cycle period is approximately a year. There is also a sharp peak between 1995 and 1996.
+The code fragment transforms the `time` offset from the first measurement into calendar dates, starting from 31 Dec 1993 and then stores these dates into a new column `date`.
+
+**Q2 b)**
+```{r}
+lm.fit <- lm(death ~ date, data = chicago)
+plot(death ~ date, data = chicago,
+     type = "l", lwd = 0.3, col = "blue",
+     xlab = "Calendar Date", ylab = "Deaths",
+     main = "Number of deaths against time")
+abline(lm.fit, col = "red")
+kable(coef(summary(lm.fit)), digits = 4,
+      caption = "Coefficients & p-value")
+```
+
+As the p-value of the slope is very close to 0, we can conclude that the slope is significantly different from 0, since it has such a low standard error.
+
+**Q2 c)**
+
+```{r}
+plot(resid(lm.fit) ~ chicago$date,
+     type = "h", col = "red", lwd = 0.3,
+     xlab = "Calendar Date", ylab = "Residual",
+     main = "Residuals against time")
+```
+
+There is a similar seasonal, sinusoisal pattern in the residuals with a similar sharp peak between 1995 and 1996, instead of the expected random scatter around 0 with constant variance. Hence, these residuals exhibit correlation across.
+
+**Q2 d)**
+
+Given that we assume the assumptions of linear regression by ordinary least squares hold, the regression slope indicates that for each passing day, we predict the number of deaths decreases by 0.0015 on average.
+
+**Q2 e)**
+
+We have reason to doubt the validity of the significance test here as the residuals are in major conflict with the initial assumptions of the linear regression we have performed. It is unreasonable to think the true trend of the data as-is is actually linear, hence we have reason to doubt the validity of the significance test of the slope.
+
+# Question 3
+
+```{r}
+library(FNN)
+```
+
+**Q3 a)**
+```{r}
+knn.3.fit <- with(chicago, knn.reg(train = time,
+                                   test = as.matrix(time, ncol = 1),
+                                   y = death, k = 3))
+plot(death ~ date, data = chicago,
+     type = "l", lwd = 0.3, col = "blue",
+     xlab = "Calendar Date", ylab = "Deaths",
+     main = "Number of deaths against time")
+abline(lm.fit, col = "red")
+lines(chicago$date, knn.3.fit$pred,
+      lwd = 0.5)
+legend("topleft",
+       legend = c("Actual Data", "Linear Regression", "KNN Regression, k = 3"),
+       col = c("blue", "red", "black"),
+       lwd = c(0.3, 1.0, 0.5))
+```
+
+The shape of the estimated function closely resembles that of the original function but slightly less noisy. It is periodic and sinusoidal, with the same sharp peak between 1995 and 1996.
+
+**Q3 b)** For each point in time $t$, its predicted value $\est{x}(t)$ is derived from the simple average of the 3 closest points in time from the original data, i.e. $\est{x(t)} = \frac{1}{3} \left(x(t-1) + x(t) + x(t + 1)\right)$, since we have regular intervals of time, which is similar to a moving average with sliding window of size 3.
+
+**Q3 c)**
+
+```{r}
+knn.30.fit <- with(chicago, knn.reg(train = time,
+                                    test = as.matrix(time, ncol = 1),
+                                    y = death, k = 30))
+plot(death ~ date, data = chicago,
+     type = "l", lwd = 0.3, col = "blue",
+     xlab = "Calendar Date", ylab = "Deaths",
+     main = "Number of deaths against time")
+abline(lm.fit, col = "red")
+lines(chicago$date, knn.30.fit$pred,
+      lwd = 1.5)
+legend("topleft",
+       legend = c("Actual Data", "Linear Regression", "KNN Regression, k = 30"),
+       col = c("blue", "red", "black"),
+       lwd = c(0.3, 1.0, 1.5))
+```
+
+This new estimate of the curve is much less noisy than before, being much smoother. It still exhibits the same overall sinusoisal pattern, but with a much less dramatic spike between 1995 and 1996.
+
+# Question 4
+
+**Q4 a)** 
+
+```{r}
+plot(death ~ tmpd, data = chicago,
+     type = "p", lwd = 1.0, cex = 0.5,
+     xlab = "Temperature (F)", ylab = "Deaths",
+     main = "Deaths against Temperature (F)")
+```
+
+There seems to be a rough negative linear trend in the plot above, with some signs of homoscedasticity throughout. However, there also seem to be several outliers from this trend past 80F, where the number of deaths are much higher. There is also many more data points between 20F to 80F as compared to outside this range.
+
+**Q4 b)**
+
+```{r}
+lm.fit.temp <- lm(death ~ tmpd, data = chicago)
+plot(death ~ tmpd, data = chicago,
+     type = "p", lwd = 1.0, cex = 0.5,
+     xlab = "Temperature (F)", ylab = "Deaths",
+     main = "Deaths against Temperature (F)")
+abline(lm.fit.temp, col = "red")
+kable(coef(lm.fit.temp), digits = 3,
+      caption = "Coefficients")
+```
+
+**Q4 c)**
+
+For each increase in 1 F in temperature, we predict a decrease of 0.290 deaths on average.
+
+**Q4 d)**
+
+```{r}
+plot(resid(lm.fit.temp) ~ tmpd, data = chicago, type = "h",
+     xlab = "Temperature (F)", ylab = "Residual",
+     main = "Plot of residuals against temperature (F)")
+abline(h = 0)
+```
+
+There seems to be a rough random scatter centered around 0 for most of the residuals, with no significant signs of non-linearity. However, the outliers identified in the higher temperatures do result in large positive spikes in the residuals.
+
+**Q5 a)**
+
+```{r}
+plot.seq <- seq(from = min(chicago$tmpd), to = max(chicago$tmpd), length.out = 1000)
+knn.30.temp <- with(chicago, knn.reg(train = tmpd,
+                                     test = as.matrix(plot.seq, ncol = 1),
+                                     y = death, k = 30))
+plot(death ~ tmpd, data = chicago,
+     type = "p", lwd = 1.0, cex = 0.5, col = "grey",
+     xlab = "Temperature (F)", ylab = "Deaths",
+     main = "Deaths against Temperature (F)")
+abline(lm.fit.temp, col = "red")
+lines(plot.seq, knn.30.temp$pred, col = "blue")
+legend("topleft", legend = c("Data", "Linear Regression", "KNN Regression k = 30"),
+       col = c("grey", "red", "blue"), pch = c(1, NA, NA), lty = c(NA, 1, 1))
+```
+**Q5 b)**
+
+In comparison to the linear regression, the 30-nearest neighbour regression tracks the original data more, being roughly linear from -20F to 70F, but then increasing with data towards the higher temperatures. It probably has lower bias compared to the linear regression.
+
+However, the 30-nearest neighbour regression is noisier than the linear regression, having higher variance overall. Even for the parts where the data seems roughly linear and has many data-points, the 30-nearest neighbour regression exhibits more rapid small changes.
+
+
+# Question 6
+
+**Q6 a)**
+
+```{r echo = TRUE}
+temp.celsius <- (chicago$tmpd - 32) * (5 / 9) + 4
+chicago$warmer <- temp.celsius * (9 / 5) + 32
+```
+
+**Q6 b)**
+
+```{r}
+lm.temp.diffs <- predict(lm.fit.temp, newdata = list(tmpd = chicago$warmer)) - predict(lm.fit.temp, newdata = list(tmpd = chicago$tmpd))
+
+kable(mean(lm.temp.diffs),
+      caption = "Avg. change in number of deaths")
+```
+
+**Q6 c)**
+
+```{r}
+knn.temp.diffs <- with(chicago, knn.reg(train = tmpd,
+                                        test = as.matrix(warmer, ncol = 1),
+                                        y = death, k = 30)$pred -
+                                knn.reg(train = tmpd,
+                                        test = as.matrix(tmpd, ncol = 1),
+                                        y = death, k = 30)$pred)
+
+kable(mean(knn.temp.diffs),
+      caption = "Avg. change in number of deaths")
+```
+
+# Theory Problems
+
+**1)** The $n \times n$ influence matrix and the degrees of freedom are:
+\begin{align}
+    \matr{w} &=
+    \begin{bmatrix}
+        \frac{1}{n} & \frac{1}{n}   & \hdots & \frac{1}{n} \\
+        \frac{1}{n} & \frac{1}{n}   & \hdots & \frac{1}{n} \\
+        \vdots      & \vdots        & \ddots & \vdots \\
+        \frac{1}{n} & \frac{1}{n}   & \hdots & \frac{1}{n}
+    \end{bmatrix} \\
+    df &= \text{tr} (\matr{w}) \\
+        &= \sumTo{n} \frac{1}{n} \\
+        &= 1
+\end{align}
+
+**2)** The $n \times n$ influence matrix and the degrees of freedom are:
+\begin{align}
+    \matr{w}_{ij} &=
+        \begin{cases}
+            \frac{1}{k} & \text{$y_j$ is one of the $k$ nearest neighbors of $y_i$} \\
+            0 & \text{otherwise}
+        \end{cases} \\
+    df &= \text{tr} (\matr{w}) \\
+        &= \sumTo{n} \matr{w}_{ii} \\
+        &= \frac{n}{k}
+\end{align}
+
+**3)** 
+
+\begin{align}
+    \Var{\est{Y}_i} &= \Var{\sumjTo{n} w(x_j, x_i) Y_i} \\
+        &= \sumjTo{n} \Var{w(x_j, x_i) Y_i} \\
+        &= \sumjTo{n} w^2(x_j, x_i) \Var{Y_i} \\
+        &= \sigma^2 \sumjTo{n} w^2(x_j, x_i) \\
+    \frac{1}{n}\sumTo{n} \Var{\est{Y}_i} &= \frac{\sigma^2}{n} \sumTo{n} \sumjTo{n} w^2(x_j, x_i) \\
+        &= \frac{\sigma^2}{n} \text{tr} (\matr{w} \matr{w}^T)
+\end{align}
+
+In ordinary linear regression, $\matr{w} = \X(\X^T\X)^{-1}\X^T$, which is symmetric ($\matr{w}^T = \matr{w}$) and indempotent ($\matr{w}^2 = \matr{w}$).
+
+\begin{align}
+    \frac{1}{n}\sumTo{n} \Var{\est{Y}_i} &= \frac{\sigma^2}{n} \text{tr} (\matr{w} \matr{w}^T) \\
+        &= \frac{\sigma^2}{n} \text{tr} (\matr{w}^2) \\
+        &= \frac{\sigma^2}{n} \text{tr} (\matr{w}) \\
+        &= \frac{\sigma^2}{n} p
+\end{align}
+
+**4)**
+
+\begin{align}
+    \sumTo{n} \frac{\Cov{Y_i, \est{Y_i}}}{\sigma^2_i} &= \sumTo{n} \frac{\Cov{Y_i, \sumjTo{n} w_{ij} Y_j}}{\sigma^2_i} \\
+        &= \sumTo{n} \sumjTo{n} w_{ij} \frac{\Cov{Y_i, Y_j}}{\sigma^2_i} \\
+        &= \sumTo{n} w_{ii} \frac{\Var{Y_i}}{\sigma^2_i}, \hspace{0.05in} \text{as $\epsilon_i$ are uncorrelated} \\
+        &= \sumTo{n} w_{ii} \frac{\sigma^2_i}{\sigma^2_i} \\
+        &= \sumTo{n} w_{ii} \\
+        &= \text{tr} (\matr{w})
+\end{align}
