@@ -216,3 +216,14 @@ plot(npreg.fit)
 ```
 
 From the plots of growth against each variable, we can see that both GDP and under-valuation have strong relationshipswith growth. For the plot of growth against $log(GDP)$, there seems to be significant variation from varying $log(GDP)$ from 7 to 11. For the plot of growth against under-valuation, there also seems to be significant variation from varying under-valuation from -2.0 to -0.5. Finally, there is also some relationship, a weaker one than the previous two, between growth and year. For the plot of growth against year, there seems to be a slightly significant variation from avarying year from 1970 to 1985.
+
+# Question 6
+
+\begin{align}
+\text{Optimism} &= \E{\frac{1}{n} \sumTo{n} (Y_i' - \est{\mu}(x_i))^2} - \E{\frac{1}{n} \sumTo{n} (Y_i - \est{\mu}(x_i))^2} \\
+    &= \frac{1}{n} \sumTo{n} \E{(Y_i' - \est{\mu(x_i)})^2} - \E{(Y_i - \est{\mu(x_i)})^2} \\
+    &= \frac{1}{n} \sumTo{n} \Var{Y_i' - \est{\mu}(x_i)} + \E{Y_i' - \est{\mu(x_i)}}^2 - \Var{Y_i - \est{\mu(x_i)}} - \E{Y_i - \est{\mu(x_i)}}^2 \\
+    &= \frac{1}{n} \sumTo{n} \Var{Y_i'} + \Var{\est{\mu}(x_i)} - 2 \Cov{Y_i', \est{\mu}(x_i)} - \Var{Y_i} - \Var{\est{\mu}(x_i)} + 2 \Cov{Y_i, \est{\mu}(x_i)} \\
+        &+ (\E{Y_i'} - \E{\est{\mu}(x_i)})^2 - (\E{Y_i} - \E{\est{\mu}(x_i)})^2 \\
+    &= \frac{1}{n} \sumTo{n} 2 \Cov{Y_i, \est{\mu}(x_i)}, \hspace{0.05in} \text{as $\Var{Y_i'} = \Var{Y_i}$, $\E{Y_i'} = \E{Y_i}$, and $\Cov{Y_i', \est{\mu}(x_i)} = 0$}
+\end{align}
