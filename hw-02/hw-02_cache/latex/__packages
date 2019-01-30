@@ -1,12 +1,8 @@
 base
-methods
 devtools
 colorout
-datasets
-utils
-grDevices
-graphics
-stats
 nvimcom
 rmarkdown
 knitr
+np
+usethis

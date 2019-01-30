@@ -1,3 +1,30 @@
+---
+title: "36-402 Homework 2"
+author:
+- Eu Jing Chua
+- eujingc
+date: "January 29, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
 ```{r}
 library(knitr)
 ```
@@ -95,4 +122,97 @@ names(loocv.mse) <- c("Model 1", "Model 2")
 kable(loocv.mse, caption = "$\\hat{MSE}$ of linear models by LOOCV")
 ```
 
+# Question 4
 
+```{r}
+library(np)
+```
+**Q4 a)**
+
+```{r cache=TRUE}
+npreg.fit <- npreg(growth ~ log(gdp) + underval + year, data = data,
+                   tol = 10^-3, ftol = 10^-4)
+```
+
+There are no coefficients to report for kernel regression, as it is a non-parametric smoothing method that smooths the data with a kernel. The smoothing is only controlled by the choice of the kernel and the related bandwidth for the kernel, without any coefficients on the predictors.
+
+**Q4 b)**
+
+```{r}
+plot(fitted(npreg.fit) ~ data$growth,
+     xlab = "Observed Growth", ylab = "Predicted Growth",
+     main = "Plot of Predicted Growth against Observed Growth")
+```
+
+**Q4 c)**
+
+```{r}
+plot(resid(npreg.fit) ~ fitted(npreg.fit),
+     xlab = "Predicted Growth", ylab = "Residuals",
+     main = "Plot of Residuals against Predicted Growth")
+abline(h = 0)
+```
+
+The points should be scattered around a flat line at 0 if the model was right, as we assume $\E{\epsilon} = 0$.
+In this case, it would seem that the residuals indeed are roughly scattered around a flat line at 0.
+
+**Q4 d)**
+
+```{r cache=TRUE}
+lm.mse <- cv.lm(data, c("growth ~ underval + log(gdp) + factor(year)"), nfolds = nrow(data))
+```
+```{r}
+results <- c(lm.mse, npreg.fit$bws$fval)
+names(results) <- c("Linear Regression", "Kernel Regression")
+kable(results, digits = 7, caption = "$\\hat{MSE}$ of the regressions via cross validation")
+```
+
+As seen from above, kernel regression has a lower estimated MSE than a linear model with the same covariates. Hence, the kernel regression is better in generalizing and predicting better than the linear model.
+
+# Question 5
+
+**Q5 a)**
+
+```{r fig.height = 4}
+years <- seq(from = 1955, to = 2000, by = 5)
+n <- length(years)
+plot(predict(npreg.fit, newdata = data.frame(underval = rep(0, n), gdp = rep(20000, n), year = years)) ~ years,
+     xlab = "Year", ylab = "Growth",
+     main = "Predicted growth with gdp = 20000, underval = 0")
+```
+
+**Q5 b)**
+
+```{r fig.height = 4}
+plot(predict(npreg.fit, newdata = data.frame(underval = rep(0.5, n), gdp = rep(20000, n), year = years)) ~ years,
+     xlab = "Year", ylab = "Growth",
+     main = "Predicted growth with gdp = 20000, underval = +0.5")
+```
+
+**Q5 c)**
+
+```{r fig.height = 4}
+plot(predict(npreg.fit, newdata = data.frame(underval = rep(0, n), gdp = rep(3000, n), year = years)) ~ years,
+     xlab = "Year", ylab = "Growth",
+     main = "Predicted growth with gdp = 3000, underval = 0")
+```
+
+**Q5 d)**
+
+```{r fig.height = 4}
+plot(predict(npreg.fit, newdata = data.frame(underval = rep(0.5, n), gdp = rep(3000, n), year = years)) ~ years,
+     xlab = "Year", ylab = "Growth",
+     main = "Predicted growth with gdp = 3000, underval = +0.5")
+```
+
+**Q5 e)**
+
+By comparing the graphs with initial $GDP = 20000$, we can see that by increasing under-valuation from 0 to 0.5, the predicted values increased from 1955 to 1970 but for $GDP = 3000$, increasing under-valuation from 0 to 0.5 decreased the predicted values from 1955 to 1970. The graphs are not parallel across and the effects not similar when we change intial GDP and under-valuation, hence there should be some interaction between these two variables.
+
+**Q5 f)**
+
+```{r fig.height = 10, fig.width = 8}
+plot(npreg.fit)
+```
+
+From the plots of growth against each variable, we can see that both GDP and under-valuation have strong relationshipswith growth. For the plot of growth against $log(GDP)$, there seems to be significant variation from varying $log(GDP)$ from 7 to 11. For the plot of growth against under-valuation, there also seems to be significant variation from varying under-valuation from -2.0 to -0.5. Finally, there is also some relationship, a weaker one than the previous two, between growth and year. For the plot of growth against year, there seems to be a slightly significant variation from avarying year from 1970 to 1985.
