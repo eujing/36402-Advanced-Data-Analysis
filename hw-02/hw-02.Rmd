@@ -42,7 +42,7 @@ kable(coef(summary(lm.fit.1)),
       digits = 5, caption = "Coefficients & Std. Error of linear model")
 ```
 
-Since the coeficient of $log(gdp)$ is positive, this model does not seem to support the idea of "catching-up" as countries with higher GDP have a higher economic growth rate. However, it does support the idea that under-valuing a currency boosts economic growth as the coefficient of $underval$ is positive, indicating a positive $underval$ index, which represents undervaluing, leads to higher economic growth.
+Since the coeficient of $log(gdp)$ is significantly positive, this model does not seem to support the idea of "catching-up" as countries with higher GDP have a higher economic growth rate. However, it does support the idea that under-valuing a currency boosts economic growth as the coefficient of $underval$ is quite significantly positive (assuming 5% significance level), indicating a positive $underval$ index, which represents undervaluing, leads to higher economic growth.
 
 # Question 2
 
@@ -57,7 +57,7 @@ kable(coef(summary(lm.fit.2))[2:3, ],
 ```
 
 **Q2 b)**
-It is more appropriate to use `factor(year)` as there are only unique years that are 5 years apart. As such, modelling this way we will have a slope for each 5-year interval rather than a single slope for each increment of year.
+It is more appropriate to use `factor(year)` as there are only 10 unique years that are 5 years apart. As such, it might be more appropriate to model year as a discrete variable rather than a continuous one. Modelling this way, we will have a slope for each 5-year interval rather than a single slope for each increment of year.
 
 **Q2 c)**
 
@@ -122,16 +122,20 @@ names(loocv.mse) <- c("Model 1", "Model 2")
 kable(loocv.mse, caption = "$\\hat{MSE}$ of linear models by LOOCV")
 ```
 
+The second linear model seems to perform better on predictions, having an estimated MSE that is `r signif((loocv.mse[1] - loocv.mse[2]) / loocv.mse[1] * 100, 3)`% lower than the first model.
+
 # Question 4
 
 ```{r}
 library(np)
+options(np.messages = FALSE)
 ```
 **Q4 a)**
 
 ```{r cache=TRUE}
 npreg.fit <- npreg(growth ~ log(gdp) + underval + year, data = data,
                    tol = 10^-3, ftol = 10^-4)
+
 ```
 
 There are no coefficients to report for kernel regression, as it is a non-parametric smoothing method that smooths the data with a kernel. The smoothing is only controlled by the choice of the kernel and the related bandwidth for the kernel, without any coefficients on the predictors.
@@ -225,5 +229,21 @@ From the plots of growth against each variable, we can see that both GDP and und
     &= \frac{1}{n} \sumTo{n} \Var{Y_i' - \est{\mu}(x_i)} + \E{Y_i' - \est{\mu(x_i)}}^2 - \Var{Y_i - \est{\mu(x_i)}} - \E{Y_i - \est{\mu(x_i)}}^2 \\
     &= \frac{1}{n} \sumTo{n} \Var{Y_i'} + \Var{\est{\mu}(x_i)} - 2 \Cov{Y_i', \est{\mu}(x_i)} - \Var{Y_i} - \Var{\est{\mu}(x_i)} + 2 \Cov{Y_i, \est{\mu}(x_i)} \\
         &+ (\E{Y_i'} - \E{\est{\mu}(x_i)})^2 - (\E{Y_i} - \E{\est{\mu}(x_i)})^2 \\
-    &= \frac{1}{n} \sumTo{n} 2 \Cov{Y_i, \est{\mu}(x_i)}, \hspace{0.05in} \text{as $\Var{Y_i'} = \Var{Y_i}$, $\E{Y_i'} = \E{Y_i}$, and $\Cov{Y_i', \est{\mu}(x_i)} = 0$}
+    &= \frac{1}{n} \sumTo{n} 2 \Cov{Y_i, \est{\mu}(x_i)}, \hspace{0.05in} \text{as $\Var{Y_i'} = \Var{Y_i}$, $\E{Y_i'} = \E{Y_i}$, and $\Cov{Y_i', \est{\mu}(x_i)} = 0$} \\
+    &= \frac{2}{n} \sumTo{n} \Cov{Y_i, \sumjTo{n} w(x_j, x_i) Y_j} \\
+    &= \frac{2}{n} \sumTo{n} w(x_i, x_i) \Var{Y_i}, \hspace{0.05in} \text{as} \hspace{0.05in} \Cov{Y_i, Y_j} = 0 \forall i \ne j \\
+    &= \frac{2 \sigma^2}{n} \text{tr}(\matr{w}) = \frac{2 \sigma^2}{n} df(\est{\mu})
+\end{align}
+
+# Question 7
+
+\begin{align}
+\est{h_{CV}} &= h_{opt} O(n^{-1/10}) + 2 h_{opt} \\
+    &= O(n^{-1/5}) O(n^{-1/10}) + O(n^{-1/5}) \\
+    &= O(n^{-3/10}) + O(n^{-1/5}) \\
+    &= O(n^{-1/5}) \\
+MSE(\est{h_{CV}}) - \sigma^2(x) &= O(\est{h_{CV}}^4) + O((n \est{h_{CV}})^{-1}) \\
+    &= O((n^{-1/5})^4) + O(((n^{1 - 1/5}))^{-1}) \\
+    &= O(n^{-4/5}) + O(n^{-4/5}) \\
+    &= O(n^{-4/5})
 \end{align}
