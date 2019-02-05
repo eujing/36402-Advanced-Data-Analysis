@@ -1,0 +1,196 @@
+---
+title: "36-402 Homework 3"
+author:
+- Eu Jing Chua
+- eujingc
+date: "February 4, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+```
+
+```{r}
+stocks <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/hw/03/stock_history.csv")
+```
+
+#Question 1
+
+**Q1 a)**
+
+```{r}
+stocks$MAPE <- stocks$Price / stocks$Earnings_10MA_back
+kable(as.array(summary(stocks$MAPE)), digits = 3,
+      caption = "Summary of `MAPE`")
+```
+
+There are exactly 120 NAs as the column `Earnings_10MA_back` has exactly 120 NAs too.
+
+**Q1 b)**
+
+```{r}
+lm.fit <- lm(Return_10_fwd ~ MAPE, data = stocks)
+kable(coef(summary(lm.fit)), digits = 3,
+      caption = "Coefficients of linear model")
+```
+
+**Q1 c)**
+
+```{r}
+# Taken from textbook chapter 3 page 77
+cv.lm <- function(data, formulae, nfolds = 5) {
+    data <- na.omit(data)
+    formulae <- sapply(formulae, as.formula)
+    n <- nrow(data)
+    fold.labels <- sample(rep(1:nfolds, length.out = n))
+    mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+    colnames <- as.character(formulae)
+    for (fold in 1:nfolds) {
+        test.rows <- which(fold.labels == fold)
+        train <- data[-test.rows, ]
+        test <- data[test.rows, ]
+        for (form in 1:length(formulae)) {
+            current.model <- lm(formula = formulae[[form]], data = train)
+            predictions <- predict(current.model, newdata = test)
+            test.responses <- eval(formulae[[form]][[2]], envir = test)
+            test.errors <- test.responses - predictions
+            mses[fold, form] <- mean(test.errors^2)
+        }
+    }
+    return(colMeans(mses))
+}
+
+lm.fit.mse <- cv.lm(stocks, c("Return_10_fwd ~ MAPE"), nfolds = 5)
+```
+```{r}
+kable(lm.fit.mse, digits = 5, caption = "MSE of linear model (5-fold CV)")
+```
+
+# Question 2
+
+**Q2 a)**
+
+\begin{align}
+Y &= X + \epsilon_t, \hspace{0.05in} \text{where} \\
+Y &= R_t \\
+X &= \frac{1}{M_t} \\
+\epsilon_t &\hspace{0.05in} \text{is the irreducible noise}
+\end{align}
+
+In the form of this basic linear regression model, we can see that there is a fixed slope of 1 and fixed intercept of 0.
+
+**Q2 b)**
+
+```{r}
+insample.mse <- with(stocks, mean((Return_10_fwd - 1/MAPE)^2, na.rm = TRUE))
+kable(insample.mse, digits = 5, caption = "In-sample MSE")
+```
+
+**Q2 c)**
+
+In this model, the slope and intercept are fixed. This means that our fixed parameters are not a function of the finite data sample we have seen. Thus, our model will perform the same regardless of where the data is from, whether in-sample or out-of-sample.
+
+**Q2 d)**
+
+```{r}
+resids <- with(na.omit(stocks), Return_10_fwd - 1/MAPE)
+qqnorm(resids)
+qqline(resids)
+```
+
+**Q2 e)**
+
+The residuals look roughly Gaussian, but it seems that they have thinner tails than what would have been expected if the distribution were Gaussian.
+
+# Question 3
+
+**Q3 a)**
+
+```{r}
+lm.fit.2 <- lm(Return_10_fwd ~ I(1/MAPE), data = stocks)
+kable(coef(summary(lm.fit.2))[2, ], digits = 3, col.names = "$\\hat{\\beta}_1$",
+      caption = "Slope of generalized basic model")
+```
+
+**Q3 b)**
+
+```{r}
+lm.fit.2.mse <- cv.lm(stocks, c("Return_10_fwd ~ I(1/MAPE)"), nfolds = 5)
+kable(lm.fit.2.mse, digits = 5, caption = "MSE of generalized basic model (5-fold CV)")
+```
+
+This generalized basic model has a lower estimated MSE than both the first model and the basic model.
+
+# Question 4
+
+**Q4 a)**
+
+```{r}
+kable(coef(summary(lm.fit)), digits = 3,
+      caption = "Coefficients of linear model")
+```
+
+Since the coefficient of `MAPE` has a p-value very close to 0, it is statistically significant.
+
+**Q4 b)**
+
+```{r}
+kable(coef(summary(lm.fit.2)), digits = 3,
+      caption = "Coefficients of generalized basic model")
+```
+
+Since the coefficient of `1/MAPE` has a p-value very close to 0, it is statistically significant.
+
+**Q4 c)**
+
+```{r}
+lm.fit.3 <- lm(Return_10_fwd ~ MAPE + I(1/MAPE), data = stocks)
+kable(coef(summary(lm.fit.3)), digits = 3,
+      caption = "Coefficients of combined linear models")
+```
+
+Both `MAPE` and `1/MAPE` have coefficients that have p-values very close to 0, so both coefficients are statistically significant.
+
+**Q4 d)**
+
+```{r}
+lm.fit.4 <- lm(Return_10_fwd ~ MAPE + I(1/MAPE) + I(MAPE^2), data = stocks)
+kable(coef(summary(lm.fit.4)), digits = 3,
+      caption = "Coefficients of MAPE, 1/MAPE and MAPE^2")
+```
+
+The only coefficient that is statistically significant in this model is `1/MAPE`, with a p-value very close to 0.
+
+**Q4 e)**
+
+As we start including more forms of `MAPE` in our linear models, we introduce more correlation between each term in ourgression. This tends to affect the significance of each variable, where higher correlation results in less statistically significant coefficients.
+
+Thus, significance testing is not a viable way of selecting variables for a model as the significance of a single variable in the model is affected by factors such as correlation with other variables, variance of the variable and sample size, all of which have nothing to do with how well the variable can help in predicting the response.
+
+# Question 5
+
+**Q5 a)**
+
+```{r}
+
+```
+
