@@ -180,6 +180,7 @@ kable(coef(summary(lm.fit.4)), digits = 3,
 
 The only coefficient that is statistically significant in this model is `1/MAPE`, with a p-value very close to 0.
 
+
 **Q4 e)**
 
 As we start including more forms of `MAPE` in our linear models, we introduce more correlation between each term in ourgression. This tends to affect the significance of each variable, where higher correlation results in less statistically significant coefficients.
@@ -190,7 +191,77 @@ Thus, significance testing is not a viable way of selecting variables for a mode
 
 **Q5 a)**
 
-```{r}
+TODO
 
+**Q5 b)**
+
+TODO
+
+**Q5 c)**
+
+```{r warning = FALSE}
+library(MASS)
+
+resids.t.dist <- fitdistr(resids, "t")
+
+hist(resids, freq = FALSE, xlab = "Residuals",
+     main = "Distribution of residuals")
+
+# From 31 Jan In-class examples
+dt.fitted <- function(x,fitted.t) {
+  m <- fitted.t$estimate["m"]
+  s <- fitted.t$estimate["s"]
+  df <- fitted.t$estimate["df"]
+  return((1/s)*dt((x-m)/s,df=df)) # why the (1/s) factor out front?
+}
+
+curve(dt.fitted(x, resids.t.dist), add = TRUE, col = "red")
+```
+
+# Question 6
+
+**Q6 a)**
+
+```{r echo = TRUE}
+# Simulates the basic model that R_t = 1/M_t + noise,
+# where the noise is t-distributed with params from the input.
+# Arguments:
+#   MAPE: Vector of M_t
+#   t.params: Named vector with m, s, and df representing the mean,
+#             sample standard deviation, and degrees of freedom of 
+#             the t-distribution of the noise
+# Returns:
+#   Dataframe with a MAPE column and a predicted Return_10_fwd using
+#   the basic model above
+sim.basic.model <- function(MAPE, t.params) {
+    n <- length(MAPE)
+    m <- t.params["m"]
+    s <- t.params["s"]
+    df <- t.params["df"]
+
+    # Generate noise from the input
+    noise <- rt(n, df) * s + m
+
+    results <- data.frame(
+        MAPE = MAPE,
+        Return_10_fwd = 1/MAPE + noise)
+
+    return(results)
+}
+```
+
+**Q6 b)**
+
+```{r echo = TRUE}
+# Runs a linear regression of R_t against 1/M_t, or Return_10_fwd
+# against 1/MAPE and returns the slope
+# Arguments:
+#   data: data frame with Return_10_fwd and MAPE columns
+# Returns:
+#   slope: Coefficient of the 1/MAPE term in the linear regression
+sim.generalized.model <- function(data) {
+    lm.fit <- lm(Return_10_fwd ~ I(1/MAPE), data = data)
+    return(coef(lm.fit)[2])
+}
 ```
 

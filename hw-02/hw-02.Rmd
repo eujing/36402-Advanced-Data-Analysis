@@ -124,6 +124,10 @@ kable(loocv.mse, caption = "$\\hat{MSE}$ of linear models by LOOCV")
 
 The second linear model seems to perform better on predictions, having an estimated MSE that is `r signif((loocv.mse[1] - loocv.mse[2]) / loocv.mse[1] * 100, 3)`% lower than the first model.
 
+**Q3 c)**
+
+Since the lowest count of any country is 2, doing 5-fold cross validation has a high chance of resulting in the training 4-folds missing some countries because the 2 rows are in the testing 1-fold that is left out. This would create models that leave out some countries by chance and fail to predict with a new category it has not seen in training.
+
 # Question 4
 
 ```{r}
