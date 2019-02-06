@@ -259,9 +259,116 @@ sim.basic.model <- function(MAPE, t.params) {
 #   data: data frame with Return_10_fwd and MAPE columns
 # Returns:
 #   slope: Coefficient of the 1/MAPE term in the linear regression
-sim.generalized.model <- function(data) {
+sim.get.slope <- function(data) {
     lm.fit <- lm(Return_10_fwd ~ I(1/MAPE), data = data)
     return(coef(lm.fit)[2])
 }
 ```
 
+**Q6 c)**
+
+```{r cache = TRUE}
+sim.results <- replicate(1000, sim.get.slope(sim.basic.model(stocks$MAPE, resids.t.dist$estimate)))
+prop <- sum(abs(sim.results - 1) >= abs(coef(lm.fit.2)[2] - 1)) / length(sim.results)
+```
+
+```{r}
+kable(prop, col.names = "$P(\\mid\\tilde{\\beta}_1 - 1\\mid \\ge \\mid\\hat{\\beta}_1 - 1\\mid)$")
+```
+
+**Q6 d)**
+
+\begin{align}
+H_0: &\beta_1 = 1 \\
+H_a: &\beta_1 \ne 1, \hspace{0.05in} \text{where the test statistic is as follows:} \\
+t_{score} &= \frac{|\tilde{\beta}_1 - 1|}{SE_{\tilde{\beta}_1}} \sim T_{df}, \hspace{0.05in} \text{where $df$ is obtained by fitting a t-distribution to the residuals}
+\end{align}
+
+The p-value of this test is then `r signif(prop, 3)`, so there is insufficient evidence to reject the null hypothesis. Thus, we conclude at 0.05 significance that the slope is exactly 1.0.
+
+# Question 7
+
+```{r}
+library(np)
+options(np.messages = FALSE)
+```
+
+```{r cache = TRUE}
+npreg.fit <- npreg(Return_10_fwd ~ MAPE, data = stocks)
+```
+```{r}
+kable(npreg.fit$bw, digits = 5, col.names = "Bandwidth")
+kable(npreg.fit$bws$fval, digits = 5, col.names = "CV MSE")
+```
+
+The kernel regression model has a lower CV MSE, and hence better predictive accuracy, in comparison to the other models considered so far.
+
+# Question 8
+
+```{r}
+# Q8 a)
+plot(Return_10_fwd ~ MAPE, data = stocks,
+     ylab = "Returns", cex = 0.5, col = "darkgrey",
+     main = "Plot of Returns against MAPE")
+
+# Q8 b)
+curve(1/x, add = TRUE)
+
+# Q8 c)
+abline(lm.fit, col = "red")
+curve(coef(lm.fit.2)[1] + coef(lm.fit.2)[2] / x, add = TRUE, col = "blue")
+
+# Q8 d)
+cleaned.stocks <- na.omit(stocks)
+MAPE.sorted.idx <- order(cleaned.stocks$MAPE)
+lines(cleaned.stocks$MAPE[MAPE.sorted.idx], fitted(npreg.fit)[MAPE.sorted.idx],
+      col = "purple")
+
+legend("topright", legend = c("Basic Model", "Linear Reg. with MAPE", "Linear Reg. with 1/MAPE", "Kernel Reg."),
+       col = c("black", "red", "blue", "purple"), lty = 1)
+```
+
+The kernel regression seems to most resemble the functions of `1/MAPE`. It seems to model the overall decaying pattern of the data, but also has finer variations than the `1/MAPE` functions.
+
+# Question 9
+
+**Q9 a)**
+
+```{r echo = TRUE}
+# Runs a kernel regression of Return_10_fwd against MAPE and returns the fitted values
+# Arguments:
+#   data: Data frame with columns Return_10_fwd and MAPE
+# Returns:
+#   Vector of fitted values from the kernel regression
+kernel.smooth <- function(data) {
+    npreg.fit <- npreg(Return_10_fwd ~ MAPE, data = data)
+    return(fitted(npreg.fit))
+}
+```
+
+**Q9 b)**
+
+```{r cache = TRUE}
+kernel.fits <- replicate(100, kernel.smooth(sim.basic.model(stocks$MAPE, resids.t.dist$estimate)))
+```
+```{r}
+plot(Return_10_fwd ~ MAPE, data = stocks,
+     ylab = "Returns", cex = 0.5, col = "darkgrey",
+     main = "Plot of Returns against MAPE")
+matplot(cleaned.stocks$MAPE[MAPE.sorted.idx], kernel.fits[MAPE.sorted.idx, ], add = TRUE, lty = 1, col = "red", type = "l", lwd = 0.3)
+curve(1/x, add = TRUE)
+lines(cleaned.stocks$MAPE[MAPE.sorted.idx], fitted(npreg.fit)[MAPE.sorted.idx],
+      col = "blue")
+legend("topright", legend = c("Basic model", "Kernel Reg. from Simulations", "Kernel Reg. from Data"),
+       col = c("black", "red", "blue"), lwd = c(1, 0.3, 1))
+```
+
+The kernel regressions from the data and the simulations do differ, in that the ones from the data are all quite smooth for values of `MAPE` below 30, tracking the function of the basic model quite well, before increasing in variability for values above 30. However, the kernel regression for the actual data is not as smooth throughout, and is consistently lower than most of the regressions of simulations for values around above `MAPE` of 35.
+
+**Q9 c)**
+
+This is a sign that the basic model might not be an accurate model of the underlying process. When running the simulations to produce new data that hopefully looks like the real data, we run the same regressions on both the synthetic data and real data, and then realize that the regressions are not so similar. This implies that the real data does not look like a run of the simulation assuming the basic model, hence the basic model might not be accurate in modelling the actual process.
+
+# Question 10
+
+The results from Q3 b), Q6 d) seem to indicate that the expected returns are roughly inversely proportional to MAPE, as the general estimate of $\hat{R_t} = \hat{\beta}_0 + \hat{\beta}_1 \frac{1}{M_t}$ has better prediction accuracy than the basic model, from the MSEs of their 5-fold cross-validations. However, the results from Q9 c) also shows that the data generated from the basic model where expected returns are exactly inversely proportional to MAPE is not really similar to the real data collected. Hence, there does seem to be a rough inversely proportional relationship, but it is not exact in nature.
