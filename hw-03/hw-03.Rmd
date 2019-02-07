@@ -33,7 +33,7 @@ library(knitr)
 stocks <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/hw/03/stock_history.csv")
 ```
 
-#Question 1
+# Question 1
 
 **Q1 a)**
 
@@ -191,11 +191,33 @@ Thus, significance testing is not a viable way of selecting variables for a mode
 
 **Q5 a)**
 
-TODO
+We can conduct a $\alpha$-level significance test for the following hypothesis:
+
+\begin{align}
+H_0: \beta_0 = 0 \hspace{0.05in} \text{and} \hspace{0.05in} \beta_1 = 1 \\
+H_a: \beta_0 \ne 0 \hspace{0.05in} \text{or} \hspace{0.05in} \beta_1 \ne 1
+\end{align}
+
+Since this is essentially testing 2 null hypothesis, we apply the Bonferroni method and instead conduct a $\frac{\alpha}{2}$-level significance test for each of the individual hypothesis, i.e.
+
+\begin{align}
+H_0: \beta_1 = 1 \\
+H_a: \beta_1 \ne 1
+\end{align}
+
+and
+
+\begin{align}
+H_0: \beta_0 = 0 \\
+H_a: \beta_0 \ne 0
+\end{align}
+
+In each test, we can use a $t$-test to conduct the significance testing. Testing that the original null hypothesis holds will be a form of testing whether the basic model is right.
 
 **Q5 b)**
 
-TODO
+The significance tests that R carries out on the slopes $\beta_i$ assume that the residuals are normally distributed so that the t-score test statistic will have a t-distribution. However, now we see that the residuals in fact are not normally distributed, hence the calculated t-score does not actually have the t-distribution that R is assuming. Hence, the p-values and significance tests will not be accurate.
+
 
 **Q5 c)**
 
@@ -203,6 +225,12 @@ TODO
 library(MASS)
 
 resids.t.dist <- fitdistr(resids, "t")
+results <- matrix(nrow = 2, ncol = 3)
+results[1, ] <- resids.t.dist$estimate
+results[2, ] <- resids.t.dist$sd
+colnames(results) <- c("m", "s", "df")
+rownames(results) <- c("Estimate", "Standard Error")
+kable(results, digits = 3, caption = "Parameters of fitted t-distribution")
 
 hist(resids, freq = FALSE, xlab = "Residuals",
      main = "Distribution of residuals")
@@ -217,6 +245,10 @@ dt.fitted <- function(x,fitted.t) {
 
 curve(dt.fitted(x, resids.t.dist), add = TRUE, col = "red")
 ```
+
+**Q5 d)**
+
+By analysing the residuals from the basic model and fitting a t-distribution to the residuals, it can be seen that a t-distribution with the parameters above fits the distribution well, especially when plotting the density of the fitted t-distribution against the actual residuals. This matches the observation from how in the normal Q-Q plot, the residuals are observed to have a lighter tail than the normal distribution.
 
 # Question 6
 
