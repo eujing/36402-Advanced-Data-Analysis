@@ -1,0 +1,369 @@
+---
+title: "36-402 Homework 4"
+author:
+- Eu Jing Chua
+- eujingc
+date: "February 12, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r }
+library("knitr")
+```
+
+
+# Question 1
+
+\begin{align}
+Y &\approx cN^b \\
+\log Y &\approx \log c + b \log N \\
+\log \frac{Y}{N} &\approx \log c + (b - 1) \log N \\
+\log P &\approx \log c + (b - 1) \log N
+\end{align}
+
+Hence $\beta_0 = \log c$ and $\beta_1 = b - 1$.
+
+# Question 2
+
+```{r}
+gmp <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/17/hw/05/gmp-2006.csv")
+```
+
+**Q2 a)**
+
+If equation 1 were true, then using the linear model, we can find that $c = e^{\beta_0}$ and $b = \beta_1 + 1$
+
+**Q2 b)**
+
+```{r}
+lm.fit <- lm(log(pcgmp) ~ log(pop), data = gmp)
+kable(coef(summary(lm.fit)), digits = 5, caption = "Coefficients of linear model")
+```
+
+ Looking at the point estimate of the coefficient of log N, or `log(pop)`, we can see that the estimated exponent $b = `r signif(coef(lm.fit)[2] + 1, 3)` > 1$, which supports the idea of supra-linear scaling.
+
+
+**Q2 c)**
+
+```{r}
+# Taken from textbook chapter 3 page 77
+cv.lm <- function(data, formulae, nfolds = 5) {
+    data <- na.omit(data)
+    formulae <- sapply(formulae, as.formula)
+    n <- nrow(data)
+    fold.labels <- sample(rep(1:nfolds, length.out = n))
+    mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+    colnames <- as.character(formulae)
+    for (fold in 1:nfolds) {
+        test.rows <- which(fold.labels == fold)
+        train <- data[-test.rows, ]
+        test <- data[test.rows, ]
+        for (form in 1:length(formulae)) {
+            current.model <- lm(formula = formulae[[form]], data = train)
+            predictions <- predict(current.model, newdata = test)
+            test.responses <- eval(formulae[[form]][[2]], envir = test)
+            test.errors <- test.responses - predictions
+            mses[fold, form] <- mean(test.errors^2)
+        }
+    }
+    return(colMeans(mses))
+}
+```
+
+```{r}
+lm.fit.mse <- cv.lm(gmp, c("log(pcgmp) ~ log(pop)"), nfolds = 5)
+kable(lm.fit.mse, digits = 5, caption = "MSE (5-fold CV)")
+```
+
+# Question 3
+
+```{r}
+library(np)
+options(np.messages = FALSE)
+```
+
+```{r cache = TRUE}
+npreg.fit <- npreg(log(pcgmp) ~ log(pop), data = gmp)
+```
+
+```{r}
+plot(log(pcgmp) ~ log(pop), data = gmp, col = "lightgrey",
+     xlab = "log N", ylab = "log P", main = "Plot of kernel regression of log P against log N")
+sorted.lpop.idx <- order(log(gmp$pop))
+lines(log(gmp$pop)[sorted.lpop.idx], fitted(npreg.fit)[sorted.lpop.idx])
+kable(npreg.fit$bws$fval, digits = 5, caption = "MSE of Kernel Regression")
+```
+
+# Question 4
+
+**Q4 a)**
+
+```{r}
+locs.name <- c("Cape Girardeau, MO / Jackson, IL", "Pittsburgh, PA", "Washington, DC")
+locs.data.name <- c("Cape Girardeau-Jackson, MO-IL", "Pittsburgh, PA", "Washington-Arlington-Alexandria, DC-VA-MD-WV")
+locs.idx <- which(gmp$MSA %in% locs.data.name)
+
+lm.preds <- predict(lm.fit, newdata = gmp[locs.idx, ])
+names(lm.preds) <- locs.name
+kable(exp(lm.preds), caption = "Predicted per-capita GMP using linear model", digits = 5)
+```
+
+**Q4 b)**
+
+```{r}
+npreg.preds <- predict(npreg.fit, newdata = gmp[locs.idx, ])
+names(npreg.preds) <- locs.name
+kable(exp(npreg.preds), caption = "Predicted per-capita GMP using kernel regression", digits = 5)
+```
+
+# Question 5
+
+```{r}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+**Q5 a)**
+
+```{r cache = TRUE}
+model.formula <- log(pcgmp) ~ log(pop)
+
+resample.residuals <- function() {
+    new.gmp <- gmp
+    new.log.pcgmp <- fitted(lm.fit) + resample(resid(lm.fit))
+    new.gmp$pcgmp <- exp(new.log.pcgmp)
+    return(new.gmp)
+}
+
+locs.estimator <- function(data) {
+    new.lm.fit <- lm(model.formula, data = data)
+    new.lm.preds <- predict(new.lm.fit, newdata = gmp)
+    return(new.lm.preds)
+}
+coef.estimator <- function(data) {
+    new.lm.fit <- lm(model.formula, data = data)
+    return(coef(new.lm.fit))
+}
+
+lm.locs.resids.cis <- bootstrap.ci(statistic = locs.estimator, simulator = resample.residuals,
+                                   B = 10000, t.hat = predict(lm.fit), level = 0.92)
+lm.coefs.resids.cis <- bootstrap.ci(statistic = coef.estimator, simulator = resample.residuals,
+                                    B = 10000, t.hat = coef(lm.fit), level = 0.92)
+```
+```{r}
+kable(lm.coefs.resids.cis, digits = 5, caption = "92% C.I. for slopes of linear model")
+results <- exp(lm.locs.resids.cis[locs.idx, ])
+rownames(results) <- locs.name
+kable(results, digits = 5, caption = "92% C.I. for predicted per-capital GMP")
+```
+
+**Q5 b)**
+
+```{r cache = TRUE}
+resample.cases <- function() {
+    return(resample.data.frame(gmp))
+}
+
+lm.locs.case.cis <- bootstrap.ci(statistic = locs.estimator, simulator = resample.cases,
+                                 B = 10000, t.hat = predict(lm.fit), level = 0.92)
+lm.coefs.case.cis <- bootstrap.ci(statistic = coef.estimator, simulator = resample.cases,
+                                  B = 10000, t.hat = coef(lm.fit), level = 0.92)
+```
+```{r}
+kable(lm.coefs.case.cis, digits = 5, caption = "92% C.I. for slopes of linear model")
+results <- exp(lm.locs.case.cis[locs.idx, ])
+rownames(results) <- locs.name
+kable(results, digits = 5, caption = "92% C.I. for predicted per-capital GMP")
+```
+
+**Q5 c)**
+
+```{r cache = TRUE}
+locs.estimator.npreg <- function(data) {
+    new.npreg.fit <- npreg(log(pcgmp) ~ log(pop), data = data)
+    return(predict(new.npreg.fit, newdata = gmp))
+}
+
+npreg.locs.case.cis <- bootstrap.ci(statistic = locs.estimator.npreg, simulator = resample.cases,
+                                 B = 800, t.hat = predict(npreg.fit), level = 0.92)
+```
+```{r}
+results <- exp(npreg.locs.case.cis[locs.idx, ])
+rownames(results) <- locs.name
+kable(results, digits = 5, caption = "92% C.I. for predicted per-capital GMP")
+```
+
+# Question 6
+
+**Q6 a)**
+
+```{r}
+plot(log(pcgmp) ~ log(pop), data = gmp, col = "lightgrey", cex = 0.5,
+     xlab = "log N", ylab = "log P", main = "Plot of log P against log N")
+abline(lm.fit, col = "red")
+sorted.lpop.idx <- order(log(gmp$pop))
+lines(log(gmp$pop)[sorted.lpop.idx], fitted(npreg.fit)[sorted.lpop.idx], col = "blue")
+legend("bottomright",
+       legend = c("Linear Reg.", "Kernel Reg."),
+       col = c("red", "blue"), lty = 1)
+```
+
+The curve estimated from the power law is linear in nature as expected, whereas the curve from the kernel regression seems to bend around more, roughly following the shape of the linear curve. By comparing their MSEs from cross-validation, we know that the kernel regression seems to predict better.
+
+**Q6 b)**
+
+```{r cache = TRUE}
+eval.points <- data.frame(pop = seq(from = min(gmp$pop),
+                                    to = max(gmp$pop),
+                                    length.out = 1000))
+npreg.predict.seq <- function(data) {
+    new.npreg.fit <- npreg(log(pcgmp) ~ log(pop), data = data)
+    return(predict(new.npreg.fit, newdata = eval.points))
+}
+resampled.curves <- rboot(statistic = npreg.predict.seq, simulator = resample.cases, B = 800)
+original.curve <- predict(npreg.fit, newdata = eval.points)
+resampled.cis <- bootstrap.ci(tboots = resampled.curves, t.hat = original.curve, level = 0.95)
+```
+```{r}
+plot(log(pcgmp) ~ log(pop), data = gmp, col = "lightgrey", cex = 0.5,
+     xlab = "log N", ylab = "log P", main = "Plot of log P against log N")
+rug(log(gmp$pop), side = 1)
+lines(log(eval.points$pop), original.curve, col = "blue")
+lines(log(eval.points$pop), resampled.cis[, "lower"], lty = 2, col = "blue")
+lines(log(eval.points$pop), resampled.cis[, "upper"], lty = 2, col = "blue")
+abline(lm.fit, col = "red")
+legend("bottomright",
+       legend = c("Linear Reg.", "Kernel Reg.", "95% Conf. Band"),
+       col = c("red", "blue", "blue"), lty = c(1, 1, 2))
+```
+
+The confidence band is has alot of variance, but follows the main kernel regression curve well. It can also be seen that the confidence band is narrower in the regions with more data, and wider in the regions with less data.
+It should be noted that the confidence band does contain the linear model from Problem 2.
+
+# Question 7
+
+**Q7 a)**
+
+```{r}
+results <- predict(lm.fit, newdata = data.frame(pop = 1.1 * gmp$pop)) - predict(lm.fit)
+results <- results[locs.idx]
+names(results) <- locs.name
+kable(results, digits = 5, caption = "Predicted increase in log P with 10% increase in N")
+```
+
+**Q7 b)**
+
+```{r}
+results <- predict(npreg.fit, newdata = data.frame(pop = 1.1 * gmp$pop)) - predict(npreg.fit)
+results <- results[locs.idx]
+names(results) <- locs.name
+kable(results, digits = 5, caption = "Predicted increase in log P with 10% increase in N")
+```
+
+**Q7 c)**
+
+The non-parametric estimate of does not really support the idea of supra-linear scaling as it is possible for the predicted change in log P to be negative, depending on the starting value of log N. This contradicts the idea that increasing N leading to more-than-proportional increase in Y for all N.
+
+# Question 8
+
+**Q8 a)**
+
+Let $\log P' = \beta_0 + \beta_1 \log (1.1 N)$, then
+\begin{align}
+    \log P' - \log P &= \beta_1 \log (1.1N) - \beta_1 \log N \\
+        &= \beta_1 (\log 1.1 + \log N) - \beta_1 \log N \\
+        &= \beta_1 \log 1.1
+\end{align}
+
+Assuming the 92% C.I for $\beta_1$ is $(\beta_{1, L}, \beta_{1, U})$, then the 92% C.I for $\log P' - \log P = \log 1.1 \beta_1$ would be $(\beta_{1, L} \log 1.1, \beta_{1, U} \log 1.1 )$.
+
+**Q8 b)**
+
+```{r cache = TRUE}
+point.changes <- predict(npreg.fit, newdata = data.frame(pop = 1.1 * gmp$pop)) - predict(npreg.fit)
+locs.change.estimator <- function(data) {
+    new.npreg.fit <- npreg(log(pcgmp) ~ log(pop), data = data)
+    changes <- predict(new.npreg.fit, newdata = data.frame(pop = gmp$pop * 1.1)) - predict(new.npreg.fit, newdata = gmp)
+    return(changes)
+}
+
+npreg.changes.case.cis <- bootstrap.ci(statistic = locs.change.estimator, simulator = resample.cases,
+                                       B = 800, t.hat = point.changes, level = 0.92)
+```
+```{r}
+kable(npreg.changes.case.cis[locs.idx, ], caption = "92% C.I. for change in log P with 10% increase in N")
+```
+
+**Q8 c)**
+
+The confidence intervals do not really support the idea of supra-linear scaling, as their bounds extend into the negative. This means that under 92% confidence, it is still possible for P to increase less-than-proportionally for some N, contradicting the idea of supra-linear scaling.
+
+**Q9**
+
+Based on the analysis so far, the situation seems more ambiguous as to whether the idea of supra-linear scaling holds. When comparing the supra-linear model against the non-parametric regression, we see that the fits are close, with the non-paramettric regression having slightly better prediction based on its MSE from cross-valiation. However, when we obtain the confidence bands via bootstrapping, we find that the supra-linear model is actually well contained within, a good sign as there were much less assumptions when using the non-parametric regression but they still ended up being similar.
+
+However, the analysis done above for estimating the change in `log P` also provides another story where these two models give rise to different conclusions, with the non-parametric model contradicting the supra-linear model. Hence, the situation is still ambiguous as to whether the supra-linear model is well-supported by this data.
