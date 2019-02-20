@@ -139,3 +139,14 @@ N &= \sum_{i = 1}^n N_i \\
 \E{N} &= \sum_{i = 1}^n \E{N_i} \\
     &\approx n f(\vec{x}_0)(2h)^p
 \end{align}
+
+**Q3 c)**
+
+Let $A_{\vec{x}_0} = \{ i: \vec{X}_i \in B_h \}$, where $N = |A_{\vec{x}_0}|$, so $\est{\mu}(x_0) = \frac{1}{|A_{\vec{x}_0}|}\sum_{i \in A_{\vec{x}_0}} Y_i$
+\begin{align}
+\Var{\est{\mu}(\vec{x}_0)} &= \frac{1}{N^2} \Var{\sum_{i \in A_{\vec{x}_0}} \mu(\vec{x}_i) + \epsilon_i} \\
+    &= \frac{1}{N^2} \sum_{i \in A_{\vec{x}_0}} \Var{\epsilon_i} \\
+    &= \frac{\sigma^2}{N}, \txtsp \text{assuming that for all $i$, $\Var{\epsilon_i} = \sigma^2$} \\
+    &\approx \frac{\sigma^2}{n f(\vec{x}_0)(2h)^p} \\
+    &= O(n^{-1}h^{-p})
+\end{align}
