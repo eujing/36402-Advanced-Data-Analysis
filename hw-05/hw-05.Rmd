@@ -118,3 +118,24 @@ Let $A_{\vec{x}_0} = \{ i: |X_{i1} - x_{01}| \le h \land |X_{i2} - x_{02}| \le h
 \text{Bias}[\est{\mu}(\vec{x}_0)] &= \E{\est{\mu}(\vec{x}_0)} - \mu(\vec{x}_0) \\
         &\approx O(h^2)
 \end{align}
+
+**Q3 a)**
+
+\begin{align}
+P(\vec{X} \in B_h) &= \int_{B_h} f(\vec{x}) d\vec{x} \\
+    &\approx \int_{B_h} f(\vec{x}_0) d\vec{x} \\
+    &= f(\vec{x}_0)(2h)^p
+\end{align}
+
+This approximation is only valid for small $h$, and if the pdf was smooth. Then, we can approximate the surface around $\vec{x}_0$ as "flat", having the same density as the center, which is $f(\vec{x}_0)$. The integral just becomes this average density multiplied by the $p$-dimensional volume of $B_h$.
+
+**Q3 b)**
+
+By linearity of expectations, if $P(\vec{x} \in B_h) \approx f(\vec{x}_0)(2h)^p$ for one point, then for n samples, the expected number of points $N$ is:
+
+\begin{align}
+N &= \sum_{i = 1}^n N_i \\
+\E{N_i} &= 1 \times P(\vec{X}_i \in B_h) + 0 \times (1 - P(\vec{X}_i \in B_h)) = P(\vec{X}_i \in B_h) \\
+\E{N} &= \sum_{i = 1}^n \E{N_i} \\
+    &\approx n f(\vec{x}_0)(2h)^p
+\end{align}
