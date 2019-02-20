@@ -11,7 +11,7 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
 \newcommand{\est}[1]{\hat{#1}}
@@ -150,3 +150,86 @@ Let $A_{\vec{x}_0} = \{ i: \vec{X}_i \in B_h \}$, where $N = |A_{\vec{x}_0}|$, s
     &\approx \frac{\sigma^2}{n f(\vec{x}_0)(2h)^p} \\
     &= O(n^{-1}h^{-p})
 \end{align}
+
+# Question 4
+
+**8.3 1)**
+
+\begin{align}
+f(x_1, x_2, \hdots, x_i, \hdots, x_p) - f(x_1, x_2, \hdots, x_i + c, \hdots, x_p) &= \left( a + f_i(x_i) + \sum_{j \ne i}^p f_j(x_j) \right) - \left( a + f_i(x_i + c) + \sum_{j \ne i}^p f_j(x_j) \right) \\
+    &= f_i(x_i) - f_i(x_i + c)
+\end{align}
+
+**8.3 2)**
+
+Let $g(x) = f(x, x_2)$ and $h(x) = f(x, x_2')$ for fixed $x_2$ and $x_2'$.
+\begin{align}
+g(x) - h(x) &= \left(a + f_1(x) + f_2(x_2) \right) - \left(a + f_1(x) + f_2(x_2') \right) \\
+    &= f_2(x_2) - f_2(x_2')
+\end{align}
+This difference is a constant, as it does not depend on $x$.
+
+**8.3 3)**
+
+Let $g(x) = f(x_1, \hdots, x, \hdots, x_p)$ and $h(x) = f(x_1', \hdots, x, \hdots, x_p')$, where both $g(x), h(x)$ only vary by the $i^{th}$ coordinate, and we fix all other coordinates as $x_j$ and $x_j'$ for $g(x)$ and $h(x)$ respectively.
+
+Then the difference along the $i^{th}$ coordinate between the two functions is
+\begin{align}
+g(x) - h(x) &= \left(a + f_i(x) + \sum_{j \ne i}^p f_j(x_j) \right) - \left(a + f_i(x) + \sum_{j \ne i}^p f_j(x_j') \right) \\
+    &= \sum_{j \ne i}^p f_j(x_j) - f_j(x_j')
+\end{align}
+
+We know that all the curves formed by fixing one coordinate only have a difference that is independent of the coordinate being fixed (constant with respect to $x_i$), and hence are all parallel.
+
+# Question 5
+
+**a)**
+
+```{r}
+library(gamair)
+library(np)
+options(np.messages = FALSE)
+data(chicago)
+```
+
+```{r cache=TRUE}
+npreg.fit <- npreg(death ~ tmpd, data = chicago, bwmethod = "cv.ls")
+```
+```{r}
+sorted.idx <- order(chicago$tmpd)
+plot(death ~ tmpd, data = chicago, col = "lightgrey",
+     xlab = "Temperature (F)", ylab = "Deaths",
+     main = "Plot of deaths against temperature (F)")
+lines(chicago$tmpd[sorted.idx], fitted(npreg.fit)[sorted.idx])
+```
+
+A kernel regression is used to fit a non-parametric regression of deaths on temperature. Least-squares cross-validation was used to determine an optimal bandwidth for kernel regession.
+
+The plot looks relatively smooth, being quite linear with a negative relationship for most of the temperature range up till past around 70F, where the number of deaths with each increase in temperature increases.
+
+
+**Q5 b)**
+
+```{r}
+library(mgcv)
+am.fit <- gam(death ~ s(tmpd) + s(pm10median) + s(o3median) + s(so2median),
+              data = chicago)
+par(mfrow = c(2, 2))
+plot(am.fit)
+```
+The partial response function for temperature decreases from -20F to around 70F, before it sharply increases again. The partial response functions for pm10median, o3median, and so2median all look relatively linear and smooth, with all three having positive slopes.
+
+**Q5 c)**
+
+The shape of the partial response function for temperature roughly matches the shape of the curve, as both curves are decreasing up till around 70F before increasing again. Both curves should have roughly the same shape, as both methods of fitting a curve non-parametrically via kernel regression and splines do not make strong assumptions about the true $\mu(x)$ but instead fit by finding a good hyperparameter via cross-validation.
+
+**Q5 d)**
+
+```{r}
+library(knitr)
+results <- c(npreg.fit$bws$fval, am.fit$gcv.ubre)
+names(results) <- c("Kernel Reg.", "GAM")
+kable(results, digits = 5, caption = "Cross-validated MSE")
+```
+
+Since the additive model has a lower MSE from cross-validation, we conclude that it predicts better.
