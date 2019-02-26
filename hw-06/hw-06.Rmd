@@ -8,6 +8,7 @@ output:
   pdf_document: default
 header-includes:
     - \usepackage{enumerate}
+    - \usepackage{amsmath}
 ---
 
 ```{r setup, include=FALSE}
@@ -24,6 +25,7 @@ knitr::opts_chunk$set(echo = FALSE)
 \newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
 \newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
 \newcommand{\matr}[1]{\mathbf{#1}}
+\newcommand{\argmin}[2]{\mathop{\mathrm{argmin}}_{#1} \left[ #2 \right]}
 
 ```{r}
 library(knitr)
@@ -259,3 +261,74 @@ If 4b) applied in this case, we would find that $\mu_1(x_1) = \alpha + \beta_1 x
 However, since $X_1 = X_2$, $\E{\beta_2 X_2 \mid X_1 = x_1} = \beta_2 x_1$, so it should be that $\mu_1(x_1) = \alpha + \beta_1 x_1 + \beta_2 x_1$.
 
 Hence, 4b) does not hold if some $X_k$ is statistically dependent of $X_j$.
+
+# Question 5
+
+**Q5 a)**
+
+\begin{align}
+    \est{\beta}_{RR} &= \argmin{\beta}{ \left[ \frac{1}{n} \sumTo{n} (y_i - x_i \cdot \beta)^2 \right] + \lambda \sumjTo{p} \beta_j^2} \\
+        &= \argmin{\beta}{n^{-1} (\matr{y} - \matr{x} \beta)^T(\matr{y} - \matr{x} \beta) + \lambda \beta^T \beta}
+\end{align}
+
+**Q5 b)**
+
+\begin{align}
+    \est{\beta}_{RR}
+        &= \argmin{\beta}{n^{-1} (\matr{y} - \matr{x} \beta)^T(\matr{y} - \matr{x} \beta) + \lambda \beta^T \beta} \\
+    0 &= \frac{\partial}{\partial \beta} n^{-1} (\matr{y} - \matr{x} \beta)^T(\matr{y} - \matr{x} \beta) + \lambda \beta^T \beta \\
+        &= - n^{-1} 2 \matr{x}^T(\matr{y} - \matr{x} \beta) + 2 \lambda \beta \\
+    n^{-1} \matr{x}^T \matr{y} &= n^{-1} \matr{x}^T \matr{x} \beta + \lambda \beta \\
+    \matr{x}^T \matr{y} &= \matr{x}^T \matr{x} \beta + n \lambda \matr{I} \beta \\
+    \matr{x}^T \matr{y} &= (\matr{x}^T \matr{x} + n \lambda \matr{I}) \beta \\
+    \implies \est{\beta}_{RR} &= (\matr{x}^T \matr{x} + n \lambda \matr{I})^{-1} \matr{x}^T \matr{y}
+\end{align}
+
+**Q5 c)**
+
+As $\lambda \rightarrow 0$, $\est{\beta}_{RR} \rightarrow (\matr{x}^T \matr{x})^{-1}\matr{x}^T \matr{y} = \est{\beta}_{OLS}$, we reduce to linear regression by OLS.
+
+We know that $\matr{x}^T\matr{x}$ is symmetric and positive semi-definite, hence $\matr{x}^T\matr{x} + n\lambda \matr{I}$ is positive definite for $\lambda > 0$.
+Given that $\matr{x}^T \matr{x}$ has eigenvalues $\lambda_i \ge 0$, $i = 1 \hdots p$, the positive definite matrix $\matr{x}^T \matr{x} + n\lambda \matr{I}$ has eigenvalues $\lambda_i + \lambda > 0$.
+
+As $\lambda \rightarrow \infty$, the eigenvalues $\lambda_i + \lambda \rightarrow \infty$. Then the inverse of the positive definite matrix has eigenvalues $\frac{1}{\lambda_i + \lambda} \rightarrow 0$, so $(\matr{x}^T \matr{x} + n\lambda \matr{I})^{-1} \rightarrow \matr{0}$. Thus, this causes $\est{\beta}_{RR} \rightarrow \matr{0}$.
+
+**Q5 d)**
+
+```{r fig.height = 6}
+library(glmnet)
+library(latex2exp)
+Z <- runif(2000, min = -1, max = 1)
+epsilon <- rnorm(2000, sd = sqrt(0.05))
+Y <- Z + epsilon
+X <- replicate(50, 0.9 * Z + rnorm(2000, sd = sqrt(0.05)))
+trainX <- X[1:1000, ]
+trainY <- Y[1:1000]
+testX <- X[1001:2000, ]
+testY <- Y[1001:2000]
+
+rr.fit <- glmnet(trainX, trainY, alpha = 0)
+matplot(rr.fit$lambda, t(coef(rr.fit)[2:51, ]), type = "l", lty = 1,
+        xlab = TeX("$\\lambda$"), ylab = "Coefficient",
+        main = TeX("Plot of 50 coefficients of $X_i$ against $\\lambda$"))
+abline(h = 0, col = "grey")
+```
+
+Ridge regression is a shrinkage estimator as increasing the penalty $\lambda$ causes the estimated coefficients of the model to "shrink" towards 0.
+
+**Q5 e)**
+
+```{r}
+cv.rr.fit <- cv.glmnet(trainX, trainY, alpha = 0)
+lm.fit <- lm(trainY ~ trainX)
+
+outsamp.mse.rr <- mean((predict(cv.rr.fit, s = cv.rr.fit$lambda.min, newx = testX) - testY)^2)
+outsamp.mse.lm <- mean((predict(lm.fit, newx = testX) - testY)^2)
+
+outsamp.mse <- c(outsamp.mse.rr, outsamp.mse.lm)
+names(outsamp.mse) <- c("Ridge Regression", "OLS")
+kable(outsamp.mse, digits = 5,
+      caption = "Out-sample MSE")
+```
+
+As seen from the MSEs above, the out-of-sample performance of the Ridge Regression is better than the OLS Regression, having a much lower MSE.
