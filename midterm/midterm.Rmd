@@ -1,0 +1,145 @@
+---
+title: "36-402 Midterm"
+author:
+- Eu Jing Chua
+- eujingc
+date: "January 20, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+library(mgcv)
+```
+
+```{r}
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+
+```{r}
+data <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/exams/1/ch.csv")
+
+# Remove data for ongoing civil wars
+data <- data[!is.na(data$start), ]
+
+```
+
+# EDA
+```{r fig.height = 8}
+par(mfrow=c(4, 2))
+hist(data$exports, xlab = "Exports")
+hist(data$schooling, xlab = "Schooling")
+hist(data$growth, xlab = "Growth")
+hist(data$peace, xlab = "Peace")
+hist(data$concentration, xlab = "Concentration")
+hist(data$lnpop, xlab = "Log Population")
+hist(data$fractionalization, xlab = "Fractionalization")
+hist(data$dominance, xlab = "Dominance")
+```
+
+```{r fig.height = 8}
+par(mfrow=c(4, 2))
+boxplot(exports ~ data$start, data = data, xlab = "Start", ylab="Exports")
+boxplot(schooling ~ data$start, data = data, xlab = "Start", ylab="Schooling")
+boxplot(growth ~ data$start, data = data, xlab = "Start", ylab="Growth")
+boxplot(peace ~ data$start, data = data, xlab = "Start", ylab="Peace")
+boxplot(concentration ~ data$start, data = data, xlab = "Start", ylab="Concentration")
+boxplot(lnpop ~ data$start, data = data, xlab = "Start", ylab="Log Population")
+boxplot(fractionalization ~ data$start, data = data, xlab = "Start", ylab="Fractionalization")
+boxplot(dominance ~ data$start, data = data, xlab = "Start", ylab="Dominance")
+```
+
+```{r}
+resample.cases <- function() {
+    resample.data.frame(data)
+}
+coef.estimator <- function(data) {
+    new.lr.fit <- glm(factor(data$start) ~ exports + schooling + growth + peace + concentration + lnpop + fractionalization + dominance,
+                      data = data, family="binomial")
+    return(coef(new.lr.fit))
+}
+```
+
+```{r}
+init.fit <- glm(factor(data$start) ~ exports + schooling + growth + peace + concentration + lnpop + fractionalization + dominance,
+                data = data, family="binomial")
+```
+
+```{r}
+init.fit.coef.cis <- bootstrap.ci(statistic = coef.estimator,
+                                  simulator = resample.cases,
+                                  B = 100, t.hat = coef(init.fit),
+                                  level=0.95)
+kable(init.fit.coef.cis)
+```
+
+```{r}
+init.gam.fit <- gam(factor(data$start) ~ s(exports) + s(schooling) + s(growth) + s(peace) + s(concentration) + s(lnpop) + s(fractionalization) + dominance,
+                    data = data)
+```
+
