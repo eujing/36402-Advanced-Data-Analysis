@@ -4,3 +4,13 @@ rmarkdown
 knitr
 nlme
 mgcv
+Matrix
+foreach
+glmnet
+boot
+latex2exp
+lattice
+ggplot2
+caret
+gamclass
+kableExtra

@@ -1,13 +1,15 @@
 ---
-title: "36-402 Midterm"
+title: "36-402 Exam 1"
 author:
-- Eu Jing Chua
-- eujingc
-date: "January 20, 2019"
+- Eu Jing Chua, eujingc
 output:
   pdf_document: default
 header-includes:
     - \usepackage{enumerate}
+    - \usepackage{longtable}
+    - \usepackage{booktabs}
+    - \usepackage{ragged2e}
+    - \usepackage{float}
 ---
 
 ```{r setup, include=FALSE}
@@ -27,7 +29,11 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ```{r}
 library(knitr)
+library(kableExtra)
 library(mgcv)
+library(boot)
+library(latex2exp)
+library(gamclass)
 ```
 
 ```{r}
@@ -89,71 +95,253 @@ data <- data[!is.na(data$start), ]
 
 ```
 
-# EDA
 
-```{r fig.height = 8}
-par(mfrow = c(4, 2))
-hist(data$exports, xlab = "Exports")
-hist(data$schooling, xlab = "Schooling")
-hist(data$growth, xlab = "Growth")
-hist(data$peace, xlab = "Peace")
-hist(data$concentration, xlab = "Concentration")
-hist(data$lnpop, xlab = "Log Population")
-hist(data$fractionalization, xlab = "Fractionalization")
-hist(data$dominance, xlab = "Dominance")
+\justify
+
+# Introduction
+
+Civil wars, in contrast to wars between states, have been happening more frequently ever since the end of World War II. If we can predict the outbreak of civil wars, we can better allocate resources to helping those that will be affected and potentially save lives and protect important infrastructure. In particular, the results of our modelling will be used to discuss two leading-theories for likelihood of civil wars:
+\begin{enumerate}
+    \item Civil wars are easier to start and maintain in countries whose economies are heavily dependent on commodity exports, where rebels can seize, and sell, some part of the commodity production.
+    \item Civil wars tend to start in countries where there are strong ethnic divisions, and one ethnic group dominates the government and economy.
+\end{enumerate}
+
+We attempt to model the outbreak of civil war from a dataset with a binary response with 1 for outbreak and 0 for no outbreak, to be predicted from the following possible predictors:
+\begin{enumerate}
+    \item Exports: Index of country's dependence on commodity exports, with higher values indicating higher dependence
+    \item Schooling: Secondary school enrollment rate for males
+    \item Growth: Growth rate of GDP
+    \item Concentration: Index of population's geographical concetration, where higher values indicate higher concentration
+    \item Natural log of population size
+    \item Peace: Number of months of peace since last war (or end of WWII, taking the most recent)
+    \item Fractionalization: Index of fractionalization of population, where higher values indicate more ethnic and religious division
+    \item Dominance: Precense of ethnic dominance (binary).
+\end{enumerate}
+
+
+## EDA
+
+```{r fig.height = 5}
+par(mfrow = c(3, 3), mar=c(4, 4, 2, 2))
+hist(data$exports, xlab = "Exports (Index)", main = "Exports (Index)", breaks = 30)
+hist(data$schooling, xlab = "Schooling Rate", main = "Schooling Rate", breaks = 30)
+hist(data$growth, xlab = "Growth Rate", main = "Growth Rate", breaks = 30)
+hist(data$peace, xlab = "Peace (Months)", main = "Peace (Months)", breaks = 30)
+hist(data$concentration, xlab = "Concentration (Index)", main = "Concentration (Index)", breaks = 30)
+hist(data$lnpop, xlab = "Log Population", main = "Log Population", breaks = 30)
+hist(data$fractionalization, xlab = "Fractionalization (Index)", main = "Fractionalization (Index)", breaks = 30)
+hist(data$dominance, xlab = "Dominance (Binary)", main = "Dominance (Binary)")
 ```
 
-```{r fig.height = 8}
-par(mfrow=c(4, 2))
-boxplot(exports ~ data$start, data = data, xlab = "Start", ylab="Exports")
-boxplot(schooling ~ data$start, data = data, xlab = "Start", ylab="Schooling")
-boxplot(growth ~ data$start, data = data, xlab = "Start", ylab="Growth")
-boxplot(peace ~ data$start, data = data, xlab = "Start", ylab="Peace")
-boxplot(concentration ~ data$start, data = data, xlab = "Start", ylab="Concentration")
-boxplot(lnpop ~ data$start, data = data, xlab = "Start", ylab="Log Population")
-boxplot(fractionalization ~ data$start, data = data, xlab = "Start", ylab="Fractionalization")
-boxplot(dominance ~ data$start, data = data, xlab = "Start", ylab="Dominance")
-```
+# Models
+
+## Baseline Model
+
+In the baseline, we use a general linear model (logistic regression) to model the relationship between all the predictors, $\matr{X}$, and the binary outcome $Y$, whether a civil war is predicted to start or not.  
+Let $p_i = P(Y = 1 \mid \matr{X} = \matr{x}_i)$, then
+\begin{equation*}
+    \log \frac{p_i}{1 - p_i} = \beta_0 + \beta_1 x_{i,1} + \beta_2 x_{i,2} + \beta_3 x_{i,3} + \beta_4 x_{i,4} + \beta_5 x_{i,5} + \beta_6 x_{i,6} + \beta_7 x_{i,7} + \beta_8 x_{i,8} + \epsilon_i
+\end{equation*}
+where $x_{i,1}$ represents the dependence on exports, $x_{i,2}$ the schooling rate, $x_{i,3}$ the GDP growth rate, $x_{i,4}$ the duration of peace, $x_{i,5}$ the concentration index, $x_{i,6}$ the log population, $x_{i,7}$ the fractionalization index, $x_{i,8}$ the presence of ethnic dominance, and $\epsilon_i$ is a noise term.
 
 ```{r}
+insamp.error <- function(model, y) {
+    return(mean(ifelse(fitted(model) < 0.5, 0, 1) != y))
+}
+cv.mse <- function(model, fit.data, K=10) {
+    return(cv.glm(fit.data, model, K=K)$delta[1])
+}
+brier.score <- function(model, y) {
+    return(mean((predict(model, type="response") - y) ^ 2))
+}
 resample.cases <- function() {
     resample.data.frame(data)
 }
+
+init.glm.cols <- c("exports", "schooling", "growth", "peace", "concentration", "lnpop", "fractionalization", "dominance")
 coef.estimator <- function(data) {
     new.lr.fit <- glm(factor(data$start) ~ exports + schooling + growth + peace + concentration + lnpop + fractionalization + dominance,
                       data = data, family="binomial")
     return(coef(new.lr.fit))
 }
-insamp.error <- function(model, y) {
-    return(mean(ifelse(fitted(model) < 0.5, 0, 1) != y))
-}
 ```
 
 ```{r}
+cleaned.data <- na.omit(data)
 glm.model.str <- factor(start) ~ exports + schooling + growth + peace + concentration + lnpop + fractionalization + factor(dominance)
-gam.model.str <- factor(start) ~ s(exports) + s(schooling) + s(growth) + s(peace) + s(concentration) + s(lnpop) + s(fractionalization) + factor(dominance)
-# glm.model.str <- factor(start) ~ exports + fractionalization + factor(dominance)
-# gam.model.str <- factor(start) ~ s(exports) + s(fractionalization) + factor(dominance)
-# glm.model.str <- factor(start) ~ exports + schooling + growth + peace + concentration + lnpop
-# gam.model.str <- factor(start) ~ s(exports) + s(schooling) + s(growth) + s(peace) + s(concentration) + s(lnpop)
-
 init.glm.fit <- glm(formula(glm.model.str),
-                    data = data, family = "binomial")
-init.gam.fit <- gam(formula(gam.model.str),
-                    data = data, family = "binomial")
+                    data = cleaned.data, family = "binomial")
+init.glm.coefs <- coef(init.glm.fit)
+init.glm.coefs.cis <- bootstrap.ci(statistic = coef.estimator,
+                                   simulator = resample.cases,
+                                   B = 100, t.hat = coef(init.glm.fit),
+                                   level = 0.95)
+coef.results <- matrix(nrow = length(init.glm.coefs), ncol = 3)
+rownames(coef.results) <- names(init.glm.coefs)
+colnames(coef.results) <- c("Coefficient", "Lower", "Upper")
+coef.results[, 1] <- init.glm.coefs
+coef.results[, 2:3] <- init.glm.coefs.cis
+kable(coef.results, digits = 4, caption = "Baseline Model Estimated Coefficients with 95% C.I", booktabs = TRUE) %>%
+    kable_styling("striped", latex_options = c("hold_position"))
 ```
 
-# Bootstrap 95% C.I for coefficients
+\justify
+The estimated coefficients of the baseline model as shown above, using case-resampling and bootstrapping to generate 95% confidence intervals for the point estimates to reduce assumptions made about the data. On the whole, the model is dominated by the intercept and exports which have the biggest coefficients, with the other coefficients being relatively small. Taking the confidence intervals into account, we can see that some predictors such as concentration, fractionalization and dominance are not significant in the presence of all the other predictors.
+
 ```{r}
-init.fit.coef.cis <- bootstrap.ci(statistic = coef.estimator,
-                                  simulator = resample.cases,
-                                  B = 100, t.hat = coef(init.fit),
-                                  level = 0.95)
-kable(init.fit.coef.cis)
+init.glm.metrics <- c(cv.mse(init.glm.fit, cleaned.data, K=10),
+                      brier.score(init.glm.fit, cleaned.data$start),
+                      insamp.error(init.glm.fit, cleaned.data$start),
+                      init.glm.fit$dev)
+names(init.glm.metrics) <- c("CV MSE","Brier Score", "Classification Err.", "Deviance")
+kable(init.glm.metrics, digits = 4, caption = "Baseline Model Properties", booktabs = TRUE) %>%
+    kable_styling("striped", latex_options = c("hold_position"))
 ```
 
-# Model checking against GAM
-```{r cache=TRUE}
+\justify
+Several metrics of the baseline model are also calculated above. It should be noted that the predicting the majority class in the dataset, where a civil war did not start, has a naive classification error of `r signif(mean(cleaned.data$start), 3)`, which is is closely reflected in the classification error of the baseline model. This implies that the baseline model is hardly an improvement over the naive predictor, showing very little predictive power.
+
+```{r fig.height = 3}
+par(mfrow=c(1, 2), mar=c(4, 4, 1, 2))
+plot(residuals(init.glm.fit, type="pearson") ~ cleaned.data$exports,
+     xlab = "Exports (Index)", ylab = "Pearson Residual")
+plot(residuals(init.glm.fit, type="pearson") ~ cleaned.data$peace,
+     xlab = "Peace (Months)", ylab = "Pearson Residual")
+```
+
+\justify
+Residual analysis of the baseline model show that residuals on the whole are hardly centered around 0, with obvious clusters or outliers, and patterns as seem from the residual plots against exports and peace. The residuals seem to indicate that there are two clusters of data, with the larger cluster having residuals roughly centered around 0 without any pattern, and the smaller cluster disrupting the baseline model (examples shown above).
+
+
+## Splitting the Data
+
+```{r fig.height = 3}
+par(mar=c(4, 2, 2, 2))
+hist(cleaned.data$peace, xlab = "Peace (months)", main = "Histogram of Peace (months)", breaks = 30)
+```
+
+\justify
+Building on the failures of the baseline model, we investigate further as to what could be causing the model to fail. The patterns in the residuals from the baseline model opened up the possibilities of there being two clusters in the data, which we may not be able to model both with just one model. By looking at the initial data exploration, we take a closer look at the distribution of peace duration across the data and postulate that it is not as smooth as the rest, possibly coming from two overlapping smooth distributions instead.
+
+
+```{r fig.height = 3}
+par(mfrow=c(1, 2), mar=c(4, 4, 2, 2))
+threshold <- 200
+cleaned.data.less <- na.omit(subset(data, peace < threshold))
+cleaned.data.more <- na.omit(subset(data, peace >= threshold))
+hist(cleaned.data.less$peace, xlab = "Peace (months)", main = TeX("Peace (months) < 200"))
+hist(cleaned.data.more$peace, xlab = "Peace (months)", main = TeX("Peace (months) $\\geq$ 200"))
+```
+
+\justify
+We explore the possibility of there being two separate distributions for peace, and attempt to simply split them at a threshold of 200 months. By splitting the data, we can evaluate separate models on each split to see if indeed they are better modelled separately. We refer to the split with lesser than 200 months of peace as the lower data set, and the complement the greater data set.
+
+## Baseline Model on Each Split
+
+```{r}
+less.glm.fit <- glm(formula(glm.model.str),
+                    data = cleaned.data.less, family = "binomial")
+less.glm.coefs <- coef(less.glm.fit)
+less.glm.coefs.cis <- bootstrap.ci(statistic = coef.estimator,
+                                   simulator = resample.cases,
+                                   B = 100, t.hat = coef(less.glm.fit),
+                                   level = 0.95)
+less.coef.results <- matrix(nrow = length(less.glm.coefs), ncol = 3)
+rownames(less.coef.results) <- names(less.glm.coefs)
+colnames(less.coef.results) <- c("Coefficient", "Lower", "Upper")
+less.coef.results[, 1] <- less.glm.coefs
+less.coef.results[, 2:3] <- less.glm.coefs.cis
+less.glm.metrics <- c(cv.mse(less.glm.fit, cleaned.data.less, K=10),
+                      brier.score(less.glm.fit, cleaned.data.less$start),
+                      insamp.error(less.glm.fit, cleaned.data.less$start),
+                      mean(cleaned.data.less$start),
+                      less.glm.fit$dev)
+names(less.glm.metrics) <- c("CV MSE","Brier Score", "Classification Err.", "Naive Classification Err.", "Deviance")
+```
+
+```{r}
+more.glm.fit <- glm(formula(glm.model.str),
+                    data = cleaned.data.more, family = "binomial")
+more.glm.coefs <- coef(more.glm.fit)
+more.glm.coefs.cis <- bootstrap.ci(statistic = coef.estimator,
+                                   simulator = resample.cases,
+                                   B = 100, t.hat = coef(more.glm.fit),
+                                   level = 0.95)
+more.coef.results <- matrix(nrow = length(more.glm.coefs), ncol = 3)
+rownames(more.coef.results) <- names(more.glm.coefs)
+colnames(more.coef.results) <- c("Coefficient", "Lower", "Upper")
+more.coef.results[, 1] <- more.glm.coefs
+more.coef.results[, 2:3] <- more.glm.coefs.cis
+more.glm.metrics <- c(cv.mse(more.glm.fit, cleaned.data.more, K=10),
+                      brier.score(more.glm.fit, cleaned.data.more$start),
+                      insamp.error(more.glm.fit, cleaned.data.more$start),
+                      mean(cleaned.data.more$start),
+                      more.glm.fit$dev)
+names(more.glm.metrics) <- c("CV MSE","Brier Score", "Classification Err.", "Naive Classification Err.", "Deviance")
+```
+
+## Estimates
+
+The original general linear model is fitted back on each of the splits to produce two separate models, the lesser model from the lesser data and the greater model from the greater data. Once again, we use case-resampling and bootstrapping to generate 95% confidence intervals for the point-estimates of the coefficients.
+
+```{r results="asis"}
+kable(cbind(less.coef.results, more.coef.results),
+      digits = 4, caption = "Split Models Estimated Coefficients with 95% C.I",
+      booktabs = TRUE) %>%
+    kable_styling("striped", latex_options = c("HOLD_position")) %>%
+    add_header_above(c(" " = 1, "Lesser Model" = 3, "Greater Model" = 3))
+```
+
+\justify
+At a glance, the two models have quite different coefficients. The lesser model has relatively larger exports, concentration, and dominance coefficients as compared to the greater model, which just has smaller coefficients on the whole. Both models have very small fractionalization coefficients, which is even non-significant in the greater model as seen from its 95% confidence interval that contains 0. Several other coefficients in the greater model are non-significant, overall being a model that is dominated by its intercept.
+
+## Properties
+
+In this case, we know have two separate naive classification errors. for each split, as each split has a different proportion of positive responses. The lesser model has an in-sample classification error that is smaller than that of the naive classification error, but the greater model's in-sample classification error is still similar to its naive classification error. Although the greater model has a lower 10-fold cross-validation MSE as compared to the lesser model, it does not say much if it performs similarly to the naive classifier that predicts the majority class every time. The great difference in naive classification error shows that the class imbalance in the greater model is much more significant than the one in the lesser model. This could be a reason why the lesser model is able to have improved classification, relative to the greater model.
+
+```{r results="asis"}
+combined <- cbind(less.glm.metrics, more.glm.metrics)
+colnames(combined) <- c("Lesser Model", "Greater Model")
+kable(combined,
+      digits = 4, caption = "Split Models Properties",
+      booktabs = TRUE) %>%
+    kable_styling("striped", latex_options = c("HOLD_position"))
+```
+
+\justify
+
+## Residuals
+
+Analyzing the residuals for each of the models shows that in general, the lesser model exhibit better-behaving residuals compared to the Greater model, in the context of a general linear model. The residuals of the lesser model are morecentered around 0 with random spread (examples in left column below), while the residuals of the greater model still display the same problems we had in the original whole data set (examples in right column below). Namely, they are still hardly centered around 0, with a noticeable but smaller separate cluster with consistently higher residuals from the majority of the residuals around 0.
+
+```{r fig.height = 7}
+par(mfrow=c(4, 2), mar=c(4, 2, 2, 2))
+plot(residuals(less.glm.fit, type="pearson") ~ cleaned.data.less$exports,
+     xlab = "Exports (Index)", ylab = "Pearson Residuals", main = "Lesser Model")
+plot(residuals(more.glm.fit, type="pearson") ~ cleaned.data.more$exports,
+     xlab = "Exports (Index)", ylab = "Pearson Residuals", main = "Greater Model")
+plot(residuals(less.glm.fit, type="pearson") ~ cleaned.data.less$peace,
+     xlab = "Peace (months)", ylab = "Pearson Residuals", main = "Lesser Model")
+plot(residuals(more.glm.fit, type="pearson") ~ cleaned.data.more$peace,
+     xlab = "Peace (months)", ylab = "Pearson Residuals", main = "Greater Model")
+plot(residuals(less.glm.fit, type="pearson") ~ cleaned.data.less$growth,
+     xlab = "Growth (Rate)", ylab = "Pearson Residuals", main = "Lesser Model")
+plot(residuals(more.glm.fit, type="pearson") ~ cleaned.data.more$growth,
+     xlab = "Growth (Rate)", ylab = "Pearson Residuals", main = "Greater Model")
+plot(residuals(less.glm.fit, type="pearson") ~ cleaned.data.less$lnpop,
+     xlab = "Growth (Rate)", ylab = "Pearson Residuals", main = "Lesser Model")
+plot(residuals(more.glm.fit, type="pearson") ~ cleaned.data.more$lnpop,
+     xlab = "Growth (Rate)", ylab = "Pearson Residuals", main = "Lesser Model")
+# plot(residuals(new.gam.fit, type="pearson") ~ cleaned.data$concentration)
+# plot(residuals(new.gam.fit, type="pearson") ~ cleaned.data$lnpop)
+# plot(residuals(new.gam.fit, type="pearson") ~ cleaned.data$fractionalization)
+```
+
+## Model Checking
+
+Goodness-of-fit can be checked by testing for the difference in deviance of our general linear models against general additive models that do not require the log-odds of civil war starting to follow a linear function, but instead just additive in smooth functions. We test both of the general linear models against a general additive model trained on the respective split of data, using spline smoothing each of the same continuous predictors, while keeping the binary predictors the same (dominance). The hypothesis of each test is $H_0$: The log odds follows a linear function of the predictors versus $H_a$: The log odds does not follow a linear function of the predictors. The test statistic of this test would be the difference in deviance between the general linear and general additive models. We use simulate generate data under the null hypothesis and fit both models to the data to find the distribution of the difference in deviance under the null. We can then get a p-value for our observed differences in deviances from the simulated distributions.
+
+```{r cache=TRUE, warning=FALSE}
 # From page 250 of textbook
 sim.glm <- function(data, model) {
     copied.data <- data.frame(data)
@@ -163,37 +351,97 @@ sim.glm <- function(data, model) {
 }
 
 sim.dev.diff <- function(data, model) {
+    # Simulate under the null hypothesis
     new.data <- sim.glm(data, model)
+
+    # Predict new models
     new.glm.fit <- glm(formula(glm.model.str), data = new.data, family = "binomial")
     new.gam.fit <- gam(formula(gam.model.str), data = new.data, family = "binomial")
+
+    # Return the difference in deviation
     return(new.glm.fit$dev - new.gam.fit$dev)
 }
 
-obs.dev.diff <- init.glm.fit$dev - init.gam.fit$dev
-dev.diffs <- replicate(100, sim.dev.diff(na.omit(data), init.glm.fit))
+RUNS <- 300
+
+gam.model.str <- factor(start) ~ s(exports) + s(schooling) + s(growth) + s(peace) + s(concentration) + s(fractionalization) + s(lnpop) + factor(dominance)
+
+less.gam.fit <- gam(formula(gam.model.str),
+                    data = cleaned.data.less, family = "binomial")
+less.obs.dev.diff <- less.glm.fit$dev - less.gam.fit$dev
+less.dev.diffs <- replicate(RUNS, sim.dev.diff(cleaned.data.less, less.glm.fit))
+
+more.gam.fit <- gam(formula(gam.model.str),
+                    data = cleaned.data.more, family = "binomial")
+more.obs.dev.diff <- more.glm.fit$dev - more.gam.fit$dev
+more.dev.diffs <- replicate(RUNS, sim.dev.diff(cleaned.data.more, more.glm.fit))
 ```
 ```{r}
-mean(obs.dev.diff <= dev.diffs)
+p.values <- c(mean(less.obs.dev.diff <= less.dev.diffs),
+              mean(more.obs.dev.diff <= more.dev.diffs))
+names(p.values) <- c("Lesser", "Greater")
+kable(p.values, digits = 4, caption = "P-value of each test", booktabs = TRUE) %>%
+    kable_styling("striped", latex_options = c("HOLD_position"))
 ```
 
-# GAM partial-responses
-
-```{r fig.height=8}
-par(mfrow = c(4, 2))
-plot(init.gam.fit)
+```{r fig.height = 3}
+par(mfrow=c(1, 2), mar=c(4, 4, 2, 2))
+hist(less.dev.diffs, probability = TRUE, xlab = "Deviance Differences", main = "Lesser Model")
+abline(v = less.obs.dev.diff, col = "red")
+hist(more.dev.diffs, probability = TRUE, xlab = "Deviance Differences", main = "Greater Model")
+abline(v = more.obs.dev.diff, col = "red")
 ```
 
-# New model
-```{r cache=TRUE}
-glm.model.2.str <- "factor(start) ~ exports + concentration + lnpop"
-gam.model.2.str <- "factor(start) ~ s(exports) + concentration + s(lnpop)"
-clean.data <- subset(data, !is.na(exports) & !is.na(concentration) & !is.na(lnpop))
-glm.fit.2 <- glm(formula(glm.model.2.str), data = clean.data, family = "binomial")
-gam.fit.2 <- gam(formula(gam.model.2.str), data = clean.data, family = "binomial")
-obs.dev.diff.2 <- glm.fit.2$dev - gam.fit.2$dev
-dev.diffs.2 <- replicate(100, sim.dev.diff(clean.data, glm.fit.2))
+
+\justify
+Both tests have p-values that would not be rejected under 0.05 significance, so in both tests we fail to reject the null hypothesis that the log odds follow a linear function of the predictors. However, we can see that the deviance difference of the lesser model is well within its simulated null distribution, in comparison to the greater model that has a deviance difference relatively further from its simulated null distribution. On further inspection, we calculate the generel additive model's in-sample classification error to be `r signif(insamp.error(more.gam.fit, cleaned.data.more$start), 3)`, which is quite close to the naive classification error of the greater data. This implies that the additive model did not gain much classification power from the greater data, and hence would have a higher deviance. Thus, due to the inability of both the linear and additive model to classify the greater data well, both have higher deviances that would seem similar in the hypothesis testing.
+
+# Results
+
+From analysis of the two splits of data and the general linear models we have fit to each, we can conclude that for the split with peace duration less than 200 months, a logistic regression on all the predictors gives a good fit of the data. It has a low deviance, is an improvement on the naive classification error, has well-behaved residuals that are roughly centered around 0 that are quite uncorrelated with predictors, and satisfies our model-checking against a general additive model. The same cannot be said about the general linear model for the greater data set. Its residuals are not centered around 0, and display higher correlation with the predictors. Also, it demonstrably does not improve on the naive prediction error of the greater data set. Since the residuals do not satisfy the assumptions of logistic regression, the greater model cannot be reliably used for inference. Thus we will conduct inference with the lesser model, for peace durations less than 200 months.
+
+We evaluate the two theories for patterns of civil wars starting in countries in the context of our lesser model, so we restrict ourselves to countries that experience less than 200 months of peace.
+
+```{r results="asis"}
+kable(less.coef.results,
+      digits = 4, caption = "Lesser Models Estimated Coefficients with 95% C.I",
+      booktabs = TRUE) %>%
+    kable_styling("striped", latex_options = c("HOLD_position"))
 ```
+
+\justify
+The predictors of interest are index of dependence on exports, index of fractionalization and the presence of ethnic domination. The first theory postulates that civil wars are more likely to start in countries with higher dependence on exports. This is supported by the estimate of the coefficient of index of dependence on exports, which is positive, considering its uncertainty. When the index of dependence on exports increases while keeping everything else constant, the model predicts that log-odds of a civil war starting increases.
+
+The second theory postulates that civil wars are more likely to start in countries with higher fractionalization and the presence of domination. However, this is not supported by the respective estimates of the coefficients. The coefficient of fractionalization is negative, considering its uncertainty, which implies that with higher levels of fractionalization while keeping everything else constant decreases the log-odds of civil war starting, which is contrary to the theory. It should be noted however, that the model predicts that the presence of domination does increase the log-odds of civil war starting.
+
+# Conclusion
+
+From the results of the baseline model, we find that a general linear model is unable to effectively predict the outburst of civil war from all of the predictors. Further analysis revealed that there are potentially two clusters of data that a single general linear model might be unable to account for. The simple method of splitting the data on a single predictor (peace) and fitting separate models to each split proved to be fruitful, allowing us to fit a general linear model to the split with lower peace durations to carry out inference and evaluate the two theories. In the context of countries with less than 200 months of peace, we found that our model supports the exports dependence theory of civil wars starting, but not the fractionalization and domination theory.
+
+However, no effective model was found for the other split with greater peace durations, which suffered from the same ill-fitting problems as the original baseline model. In order to generalize the results further, more work can be done to investigate if there are indeed clusters in the data that cannot be well modelled with a single model, like a general linear model, and if so how we can better split the clusters to fit seperate models for all the clusters to evaluate the two theories across all of the data instead.
 
 ```{r}
-mean(obs.dev.diff.2 <= dev.diffs.2)
+# Adapted from cv.lm textbook chapter 3 page 77
+cv.gam <- function(data, formulae, nfolds = 5) {
+    data <- na.omit(data)
+    formulae <- sapply(formulae, as.formula)
+    n <- nrow(data)
+    fold.labels <- sample(rep(1:nfolds, length.out = n))
+    mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+    colnames <- as.character(formulae)
+    for (fold in 1:nfolds) {
+        test.rows <- which(fold.labels == fold)
+        train <- data[-test.rows, ]
+        test <- data[test.rows, ]
+        for (form in 1:length(formulae)) {
+            current.model <- gam(formula = formulae[[form]], data = train, family = "binomial")
+            predictions <- predict(current.model, newdata = test, type = "response")
+            test.responses <- eval(formulae[[form]][[2]], envir = test)
+            # Convert factor into numeric
+            test.errors <- as.numeric(as.character(test.responses)) - predictions
+            mses[fold, form] <- mean(test.errors^2)
+        }
+    }
+    return(colMeans(mses))
+}
 ```
