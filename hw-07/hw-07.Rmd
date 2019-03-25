@@ -1,0 +1,77 @@
+---
+title: "36-402 Homework 1"
+author:
+- Eu Jing Chua
+- eujingc
+date: "January 20, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+library(np)
+options(np.messages = FALSE)
+```
+
+
+# Question 1
+
+```{r}
+brain <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/hw/07/n90_pol.csv")
+```
+
+**a)**
+
+```{r}
+amygdala.np <- npudens(brain$amygdala)
+plot(amygdala.np, xlab = "Residual Amygdala volume")
+kable(amygdala.np$bw, digits = 5, caption = "Bandwidth for amygdala kernel density")
+```
+
+**b)**
+
+```{r}
+acc.np <- npudens(brain$acc)
+plot(acc.np, xlab = "Residual ACC volume")
+kable(acc.np$bw, digits = 5, caption = "Bandwidth for acc kernel density")
+```
+
+## Question 2
+
+**a)**
+
+```{r}
+amygdala.acc.np <- npudens(~amygdala + acc, data = brain)
+amygdala.acc.bws <- amygdala.acc.np$bw
+names(amygdala.acc.bws) <- c("Amygdala", "ACC")
+kable(amygdala.acc.bws, digits = 5, caption = "Bandwidths for joint kernel desnsity")
+```
+
+The bandwidths are different from before, and they should not be expected to tbe the same.
+
+**b)**
+
+```{r}
+plot(amygdala.acc.np, view = "fixed", theta = 10, phi = 45,
+     xlab = "Amygdala", ylab = "ACC",
+     main = "Joint Density of Residual Amygdala and ACC volumes")
+```
+
