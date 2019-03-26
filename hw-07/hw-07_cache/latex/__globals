@@ -1,0 +1,25 @@
+unnamed-chunk-1	library	knitr	np	options	mgcv
+unnamed-chunk-2	brain	read.csv
+unnamed-chunk-3	amygdala.np	npudens	brain	amygdala	plot	kable	bw
+unnamed-chunk-4	acc.np	npudens	brain	acc	plot	kable	bw
+unnamed-chunk-5	amygdala.acc.np	npudens	amygdala	acc	brain	amygdala.acc.bws	bw	names	c	kable
+unnamed-chunk-6	plot	amygdala.acc.np
+unnamed-chunk-7	amygdala.on.orient.np	npcdens	amygdala	ordered	orientation	brain	amygdala.on.orient.bws	with	c	xbw	ybw	names	kable
+unnamed-chunk-8	plot	amygdala.on.orient.np
+unnamed-chunk-9	acc.on.orient.np	npcdens	acc	ordered	orientation	brain	acc.on.orient.bws	with	c	xbw	ybw	names	kable
+unnamed-chunk-10	plot	acc.on.orient.np
+unnamed-chunk-11	conservative	as.integer	brain	orientation
+unnamed-chunk-12	counts	table	brain	orientation	kable	c	conservative
+unnamed-chunk-13	brain	conservative
+unnamed-chunk-14	cons.glm.fit	glm	factor	conservative	amygdala	acc	brain	cons.glm.fit.coefs	coef	kable	signif
+unnamed-chunk-15	resample	sample	x	length	rboot	tboots	replicate	B	statistic	simulator	is.null	dim	array	c	return	bootstrap	summaries	apply	summarizer	...	t	equitails	lower	quantile	alpha	upper	bootstrap.ci	ncol	stopifnot	level	intervals	t.hat	CIs	cbind	resample.data.frame	sample.rows	nrow	data
+unnamed-chunk-16	coef.simulator	new.glm.fit	glm	conservative	amygdala	acc	new.data	return	coef	resample.cases	resample.data.frame	brain	cons.glm.fit.coefs.cis	bootstrap.ci	cons.glm.fit
+unnamed-chunk-17	kable	cons.glm.fit.coefs.cis
+unnamed-chunk-18	gam.fit	gam	conservative	s	amygdala	acc	brain	kable	signif	coef	par	c	plot
+unnamed-chunk-19	cons.on.amygdala.acc.np	npcdens	factor	conservative	amygdala	acc	brain	cons.bws	with	c	xbw	ybw	names	kable
+unnamed-chunk-20	n	pred.data	data.frame	rep	median	brain	acc	seq	pred.dens	predict	cons.on.amygdala.acc.np	plot	amygdala
+unnamed-chunk-21	n	pred.data	data.frame	rep	seq	median	brain	amygdala	pred.dens	predict	cons.on.amygdala.acc.np	plot	acc
+unnamed-chunk-22	pred.data	data.frame	brain	conservative	rep	nrow	lr.preds	ifelse	predict	cons.glm.fit	gam.preds	gam.fit	cdens.preds	cons.on.amygdala.acc.np	pred.matrix	matrix	rownames	c	apply	mean	preds	kable
+unnamed-chunk-23	loocv	data	na.omit	n	nrow	fold.labels	sample	rep	nfolds	errors	matrix	colnames	c	fold	test.rows	which	train	test	curr.glm.fit	glm	factor	conservative	amygdala	acc	curr.gam.fit	gam	s	curr.cdens.fit	npcdens	lr.preds	ifelse	predict	cons.glm.fit	gam.preds	gam.fit	test.dens	data.frame	cdens.preds	cons.on.amygdala.acc.np	pred.matrix	brain	rownames	apply	mean	preds	return	colMeans
+unnamed-chunk-24	errors	loocv	brain	nrow
+unnamed-chunk-25	names	errors	c	kable

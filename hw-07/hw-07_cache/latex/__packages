@@ -1,7 +1,10 @@
 base
-devtools
-colorout
 nvimcom
+rmarkdown
+devtools
+usethis
+colorout
 knitr
 np
-rmarkdown
+nlme
+mgcv

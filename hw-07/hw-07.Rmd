@@ -1,9 +1,9 @@
 ---
-title: "36-402 Homework 1"
+title: "36-402 Homework 7"
 author:
 - Eu Jing Chua
 - eujingc
-date: "January 20, 2019"
+date: "March 25, 2019"
 output:
   pdf_document: default
 header-includes:
@@ -11,7 +11,7 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, autodep = TRUE)
 ```
 
 \newcommand{\est}[1]{\hat{#1}}
@@ -29,6 +29,7 @@ knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
 library(knitr)
 library(np)
 options(np.messages = FALSE)
+library(mgcv)
 ```
 
 
@@ -62,7 +63,7 @@ kable(acc.np$bw, digits = 5, caption = "Bandwidth for acc kernel density")
 amygdala.acc.np <- npudens(~amygdala + acc, data = brain)
 amygdala.acc.bws <- amygdala.acc.np$bw
 names(amygdala.acc.bws) <- c("Amygdala", "ACC")
-kable(amygdala.acc.bws, digits = 5, caption = "Bandwidths for joint kernel desnsity")
+kable(amygdala.acc.bws, digits = 5, caption = "Bandwidths for joint kernel density")
 ```
 
 The bandwidths are different from before, and they should not be expected to tbe the same.
@@ -70,8 +71,293 @@ The bandwidths are different from before, and they should not be expected to tbe
 **b)**
 
 ```{r}
-plot(amygdala.acc.np, view = "fixed", theta = 10, phi = 45,
-     xlab = "Amygdala", ylab = "ACC",
+plot(amygdala.acc.np, view = "fixed", theta = 55, phi = 45,
+     xlab = "\n\nAmygdala", ylab = "\n\nACC", zlab = "\n\nJoin Density",
      main = "Joint Density of Residual Amygdala and ACC volumes")
 ```
+
+The two volumes of brains do not seem to be statistically independent, and we do not expect them to be as there is likely to be some correlation between them, coming from the same brain.
+
+# Question 3
+
+**a)**
+
+```{r}
+amygdala.on.orient.np <- npcdens(amygdala ~ ordered(orientation), data = brain)
+amygdala.on.orient.bws <- with(amygdala.on.orient.np, c(xbw, ybw))
+names(amygdala.on.orient.bws) <- c("Orientation", "Amygdala")
+kable(amygdala.on.orient.bws, digits = 5, caption = "Bandwidths for conditional kernel density")
+```
+
+The bandwidth for amygdala volume is close to that of the one found in problem 1 a). If the volume of the amygdala was independent of the political orientation, then we would expect the bandwidth to be the same. However, we cannot conclude anything just from the similarity of bandwidths.
+
+```{r}
+plot(amygdala.on.orient.np, view = "fixed", theta = 60, phi = 45,
+     xlab = "\n\nOrientation", ylab = "\n\nAmygdala", zlab = "\n\nConditional Density",
+     main = "Plot of Cond. Density of Resid. Amygdala Vol. against Orientation")
+```
+
+The plot seems to indicate that there is no relationship bewteen the size of the amygdala and the political orientation, as the distribution of residual volume of amygdala seems relatively similar across all values of political orientation.
+
+**b)**
+
+```{r}
+acc.on.orient.np <- npcdens(acc ~ ordered(orientation), data = brain)
+acc.on.orient.bws <- with(acc.on.orient.np, c(xbw, ybw))
+names(acc.on.orient.bws) <- c("Orientation", "ACC")
+kable(acc.on.orient.bws, digits = 5, caption = "Bandwidths for conditional kernel density")
+```
+
+The bandwidth for ACC volume is not similar to any of the ones found before. Once again, we do not expect to find the same bandwidth as before if the two variable are not independent.
+
+```{r}
+plot(acc.on.orient.np, view = "fixed", theta = 60, phi = 45,
+     xlab = "\n\nOrientation", ylab = "\n\nACC", zlab = "\n\nConditional Density",
+     main = "Plot of Cond. Density of Resid. ACC Vol. against Orientation")
+```
+
+The plot seems to indicate a weak relationship between the size of the amygdala and the political orientation, where as the distribution of volume and its peak shifts to larger values, the political orientation score tends to be higher.
+
+# Question 4
+
+**a)**
+
+```{r echo = TRUE}
+conservative <- as.integer(brain$orientation <= 2)
+```
+
+**b)**
+
+TODO
+
+**c)**
+```{r}
+counts <- table(brain$orientation)
+kable(counts, col.names = c("Orientation", "Freq"))
+kable(table(conservative), col.names = c("Conservative", "Freq"))
+```
+
+As there are only 13 entries with politcal orientation score $\le$ 2, we can see that the vector `conservative` has the right counts.
+
+**d)**
+
+```{r echo = TRUE}
+brain$conservative <- conservative
+```
+
+# Question 5
+
+**a)**
+
+```{r}
+cons.glm.fit <- glm(factor(conservative) ~ amygdala + acc, data = brain, family = "binomial")
+cons.glm.fit.coefs <- coef(cons.glm.fit)
+kable(signif(coef(cons.glm.fit), 3), caption = "Logistic Regression Coefficients")
+```
+
+The coefficient of the intercept indicates that the log-odds of the ratio of being conservative to otherwise is predicted to be `r signif(coef(cons.glm.fit)[1], 3)` when all the predictors have volumes of 0.  
+For each unit increase in amygdala volume, the log-odds of ratio of being conservative to otherwise is predicted to increase by `r signif(coef(cons.glm.fit)[2], 3)`, holding everything else constant.  
+For each unit increase in ACC volume, the log-odds of ratio of being conservative to otherwise is predicted to decrease by `r signif(-coef(cons.glm.fit)[3], 3)`, holding everything else constant.
+
+**b)**
+
+```{r}
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+```{r warning = FALSE}
+coef.simulator <- function(new.data) {
+    new.glm.fit <- glm(conservative ~ amygdala + acc, data = new.data, family = "binomial")
+    return(coef(new.glm.fit))
+}
+
+resample.cases <- function() {
+    resample.data.frame(brain)
+}
+
+cons.glm.fit.coefs.cis <- bootstrap.ci(statistic = coef.simulator,
+                                       simulator = resample.cases,
+                                       B = 300, t.hat = coef(cons.glm.fit), level = 0.95)
+```
+
+```{r}
+kable(cons.glm.fit.coefs.cis, digits = 2, caption = "Bootstrapped 95% C.I for Coefficients")
+```
+
+The restriction to 3 significant places was reasonable as the bootstrapped standard errors are much larger than any accuracy lost in truncating to 3 significant places.
+
+# Question 6
+
+```{r}
+gam.fit <- gam(conservative ~ s(amygdala) + s(acc), data = brain, family = "binomial")
+kable(signif(coef(gam.fit)[1], 3), caption = "Intercept of GAM")
+par(mfrow = c(1, 2))
+plot(gam.fit)
+```
+
+Holding everything else constant, residual amygdala volume seems to have a positive linear relationship with the log-odds of being conservative to otherwise, where larger residual amygdala volumes result in increased log-odds of being conservative. However, holding everything else constant, residual acc volume seems to have a negative non-linear relationship with the log-odds instead. When the residuals are negative, it seems that increased residual volumes are associated with a decrease in the log-odds of being conservative. When the residuals are positive, it seems that the log-odds do not change much with any further increases in residual volumes.
+
+# Question 7
+
+**a)**
+
+```{r}
+cons.on.amygdala.acc.np <- npcdens(factor(conservative) ~ amygdala + acc, data = brain)
+cons.bws <- with(cons.on.amygdala.acc.np, c(xbw, ybw))
+names(cons.bws) <- c("Amygdala", "ACC", "Conservative")
+kable(cons.bws, digits = 5, caption = "Bandwidths of conditional density of conservative")
+```
+
+**b)**
+
+```{r}
+n <- 100
+pred.data <- data.frame(conservative = rep(1, n),
+                        acc = rep(median(brain$acc), n),
+                        amygdala = seq(from = -0.07, to = 0.09, length.out = n))
+pred.dens <- predict(cons.on.amygdala.acc.np, newdata = pred.data)
+plot(pred.dens ~ pred.data$amygdala,
+     xlab = "Residual Amygdala Volume", ylab = "Probability",
+     main = "P(conservative = 1 | acc, amygdala) vs. Amygdala Volume",
+     sub = "acc fixed at median",
+     type = "l")
+```
+
+**c)**
+
+```{r}
+n <- 100
+pred.data <- data.frame(conservative = rep(1, n),
+                        acc = seq(from = -0.04, to = 0.06, length.out = n),
+                        amygdala = rep(median(brain$amygdala), n))
+pred.dens <- predict(cons.on.amygdala.acc.np, newdata = pred.data)
+plot(pred.dens ~ pred.data$acc,
+     xlab = "Residual ACC Volume", ylab = "Probability",
+     main = "P(conservative = 1 | acc, amygdala) vs. ACC Volume",
+     sub = "amygdala fixed at median",
+     type = "l")
+```
+
+# Question 8
+
+**a)**
+
+```{r}
+# For prediction based on density
+pred.data <- data.frame(brain)
+pred.data$conservative <- rep(1, nrow(brain))
+
+lr.preds <- ifelse(predict(cons.glm.fit, type = "response") >= 0.5, 1, 0)
+gam.preds <- ifelse(predict(gam.fit, type = "response") >= 0.5, 1, 0)
+cdens.preds <- ifelse(predict(cons.on.amygdala.acc.np, newdata = pred.data) >= 0.5, 1, 0)
+pred.matrix <- matrix(nrow = 3, ncol = nrow(brain))
+rownames(pred.matrix) <- c("GLM", "GAM", "npcdens")
+pred.matrix[1, ] <- lr.preds
+pred.matrix[2, ] <- gam.preds
+pred.matrix[3, ] <- cdens.preds
+
+# Calculate misclassification rate
+pred.matrix <- apply(pred.matrix, 1, function(preds) mean(preds != brain$conservative))
+
+kable(pred.matrix, digits = 3, caption = "Misclassification rate of models")
+```
+
+If we were to just predict non-conservatives all the time, we would have a misclassification error of `r signif(mean(brain$conservative != 0), 3)`.
+
+**b)**
+
+```{r}
+# Adapted from cv.lm textbook chapter 3 page 77
+loocv <- function(data, nfolds = 5) {
+    data <- na.omit(data)
+
+    n <- nrow(data)
+    fold.labels <- sample(rep(1:nfolds, length.out = n))
+    errors <- matrix(NA, nrow = nfolds, ncol = 3)
+    colnames <- c("GLM", "GAM", "npcdens")
+
+    for (fold in 1:nfolds) {
+        test.rows <- which(fold.labels == fold)
+        train <- data[-test.rows, ]
+        test <- data[test.rows, ]
+
+        # Fit new models
+        curr.glm.fit <- glm(factor(conservative) ~ amygdala + acc, data = train, family = "binomial")
+        curr.gam.fit <- gam(factor(conservative) ~ s(amygdala) + s(acc), data = train, family = "binomial")
+        curr.cdens.fit <- npcdens(factor(conservative) ~ amygdala + acc, data = train)
+
+        # Get predictions
+        lr.preds <- ifelse(predict(cons.glm.fit, newdata = test, type = "response") >= 0.5, 1, 0)
+        gam.preds <- ifelse(predict(gam.fit, newdata = test, type = "response") >= 0.5, 1, 0)
+        test.dens <- data.frame(test)
+        test.dens$conservative <- rep(1, nrow(test.dens))
+        cdens.preds <- ifelse(predict(cons.on.amygdala.acc.np, newdata = test.dens) >= 0.5, 1, 0)
+
+        # Format predictions into matrix
+        pred.matrix <- matrix(nrow = 3, ncol = nrow(brain))
+        rownames(pred.matrix) <- c("GLM", "GAM", "npcdens")
+        pred.matrix[1, ] <- lr.preds
+        pred.matrix[2, ] <- gam.preds
+        pred.matrix[3, ] <- cdens.preds
+
+        # Calculate misclassification rate
+        errors[fold, ] <- apply(pred.matrix, 1, function(preds) mean(preds != test$conservative))
+    }
+    return(colMeans(errors))
+}
+```
+```{r warning = FALSE}
+errors <- loocv(brain, nfolds = nrow(brain))
+```
+```{r}
+names(errors) <- c("GLM", "GAM", "npcdens")
+kable(errors, digits = 3, caption = "LOOCV misclassification rate of models")
+```
+
 
