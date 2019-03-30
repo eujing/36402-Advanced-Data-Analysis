@@ -1,0 +1,107 @@
+---
+title: "36-402 Homework 1"
+author:
+- Eu Jing Chua
+- eujingc
+date: "January 20, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+library(np)
+options(np.messages = FALSE)
+
+load("stockData.RData")
+```
+
+# Question 1
+
+**a)**
+
+```{r}
+dates <- as.Date(rownames(close_price))
+matplot(dates, close_price, type = "l", lty = 1,
+        xaxt = "n", xlab = "Dates in 2015", ylab = "Closing Prices",
+        main = "Plot of closing prices against dates in 2015")
+axis(1, dates, format(dates, "%b %d"))
+```
+
+**b)**
+
+```{r echo=TRUE}
+n <- nrow(close_price)
+l.returns <- log(close_price[2:n, ] / close_price[1:(n-1), ])
+```
+
+**c)**
+
+```{r}
+matplot(dates[2:n], l.returns, type = "l", lty = 1,
+        col = adjustcolor(1:6, alpha.f = 0.4),
+        xaxt = "n", xlab = "Dates in 2015", ylab = "Log Returns",
+        main = "Plot of log returns against dates in 2015")
+axis(1, dates, format(dates, "%b %d"))
+```
+
+The log returns look more comparable as they all have the same scale now and the dependence over time is more visible.
+
+\newpage
+
+# Question 2
+
+**a)**
+
+```{r fig.height = 3.5}
+hist(l.returns[, "GE"], breaks = 30,
+     xlab = "Log Returns",
+     main = "Histogram of log returns for GE")
+```
+
+**b)**
+
+```{r fig.height = 3.5}
+hist(l.returns[, "GE"], breaks = 30, probability = TRUE,
+     xlab = "Log Returns",
+     main = "Histogram of log returns for GE")
+curve(dnorm(x,
+            mean = mean(l.returns[, "GE"]),
+            sd = sd(l.returns[, "GE"])), add = TRUE)
+```
+
+The normal distribution appears to fit the distribution of the log returns well, with the exception of possible outliers with exceptionally high log returns.
+**c)**
+
+```{r}
+np.lr.ge <- npudens(l.returns$GE)
+plot(np.lr.ge, col = "red",
+     xlab = "Log Returns", main = "Plot of Density of Log Returns of GE")
+curve(dnorm(x,
+            mean = mean(l.returns[, "GE"]),
+            sd = sd(l.returns[, "GE"])),
+      add = TRUE, col = "blue")
+legend("topright",
+       legend = c(paste("KDE (bw = ", signif(np.lr.ge$bw, 3), ")"), "Gaussian"),
+       lty = 1, col = c("red", "blue"))
+```
+
+The kernel density estimate (KDE) has heavier tails than the best-fitting gaussian and is also slightly skewed to the left. The KDE also has relatively lower density around the mean.
+
