@@ -1,9 +1,9 @@
 ---
-title: "36-402 Homework 1"
+title: "36-402 Homework 8"
 author:
 - Eu Jing Chua
 - eujingc
-date: "January 20, 2019"
+date: "April 02, 2019"
 output:
   pdf_document: default
 header-includes:
@@ -103,5 +103,145 @@ legend("topright",
        lty = 1, col = c("red", "blue"))
 ```
 
-The kernel density estimate (KDE) has heavier tails than the best-fitting gaussian and is also slightly skewed to the left. The KDE also has relatively lower density around the mean.
+The kernel density estimate (KDE) has slightly heavier tails than the best-fitting gaussian and is also slightly skewed to the left. The KDE also has relatively lower density around the mean. However, it still appears approximately gaussian on the whole.
 
+**d)**
+
+```{r cache = TRUE}
+cols <- 1:6
+sorted.idx <- order(l.returns[, 1])
+plot(l.returns[sorted.idx, 1], fitted(npudens(l.returns[, 1]))[sorted.idx],
+     xlim = c(min(l.returns), max(l.returns)),
+     ylim = c(0, 50),
+     type = "l", col = cols[1],
+     xlab = "Log Returns", ylab = "Density",
+     main = "Plot of Density of Log Returns")
+for (i in 2:28) {
+    sorted.idx <- order(l.returns[, i])
+    lines(l.returns[sorted.idx, i], fitted(npudens(l.returns[, i]))[sorted.idx],
+         col = cols[((i - 1) %% 6) + 1])
+}
+```
+
+The curves seem similar to that of the GE curve, and supports the previous statements as the curve all look approximately gaussian, with mean near 0.
+
+# Question 3
+
+**a)**
+
+```{r}
+one.factor <- factanal(l.returns, factors = 1, scores = "regression")
+kable(signif(one.factor$loadings[, 1], 3),
+      col.names = "w",
+      caption = "Table of loadings for one-factor model")
+```
+
+It makes sense that there are 28 entries as we only have 1 row of loadings by setting the factors to 1, where there are 28 columns for the matrix of loadings.
+
+**b)**
+
+```{r}
+barplot(sort(one.factor$loadings[, 1]), las = 1,
+        xlab = "Company", ylab = "Loading",
+        main = "Plot of loading against company")
+```
+
+The minimum loading is around 0.50, while the maximum loading is around 0.85. Most of the loadings are also around a small range from 0.6 to 0.7.
+
+```{r}
+plot(dates[2:n], one.factor$scores, type = "l",
+     xlab = "Dates in 2015", ylab = "Factor score", xaxt = "n",
+     main = "Plot of factor score against dates in 2015")
+axis(1, dates, format(dates, "%b %d"))
+```
+
+Most of the factor scores seem to be randomly distributed over time within -2 and 2. However, we can observe a large dip and spike in late August, going from roughly -4 to 4.
+
+**d)**
+
+The time-series plot of factor scores summarizes the time-seies plot of log-returns for each company well, smoothing out the variations between each company. Both plots show similar trends, with scores and log returns looking roughly stationary around 0 across time. The general large dip and spike across all companies' log returns around late August is also clearly reflected in the factor score plot.
+
+# Question 4
+
+```{r}
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+```{r cache = TRUE}
+loadings.simulator <- function(new.data) {
+    new.one.factor <- factanal(new.data, factors = 1, scores = "regression")
+    return(new.one.factor$loadings[, 1])
+}
+
+resample.cases <- function() {
+    resample.data.frame(l.returns)
+}
+
+one.factor.loadings.cis <- bootstrap.ci(statistic = loadings.simulator,
+                                        simulator = resample.cases,
+                                        B = 300, level = 0.90,
+                                        t.hat = one.factor$loadings[, 1])
+```
+
+```{r}
+sorted.idx <- order(one.factor$loadings[, 1])
+x <- 1:28
+plot(x, one.factor$loadings[sorted.idx, 1], type = "p", pch = 16,
+     ylim = c(min(one.factor.loadings.cis[, 1]),
+              max(one.factor.loadings.cis[, 2])),
+     xlab = "Company", ylab = "Loadings", xaxt = "n",
+     main = "Plot of loadings (with error bars) against company")
+lab.idx <- seq(from = 1, to = 28, by = 3)
+axis(1, lab.idx, names(one.factor$loadings[sorted.idx, 1])[lab.idx])
+arrows(x,
+       one.factor.loadings.cis[sorted.idx, 1],
+       x,
+       one.factor.loadings.cis[sorted.idx, 2],
+       length = 0.05, angle = 90, code = 3)
+```
