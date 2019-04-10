@@ -1,0 +1,29 @@
+\begin{align*}
+    \Cov{Q, X} &= \Var{X} \gamma_1 + \Var{X} \beta \gamma_2 \\
+        &= (\alpha^2 + \sigma^2)(\gamma_1 + \beta \gamma_2) \\
+    \Cov{Q, R} &= \Var{R} \gamma_2 + \Var{X} \beta \gamma_1 \\
+        &= \Var{\beta X + \eta} \gamma_2 + (\alpha^2 + \sigma^2)\beta \gamma_2 \\
+        &= (\beta^2 \Var{X} + \sigma^2) \gamma_2 + (\alpha^2 + \sigma^2)\beta \gamma_2 \\
+        &= (\beta^2 (\alpha^2 + \sigma^2) + \sigma^2) \gamma_2 + (\alpha^2 + \sigma^2)\beta \gamma_2 \\
+    \Cov{X, R} &= (\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) \\
+    v &= \begin{bmatrix}
+        (\alpha^2 + \sigma^2) & (\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) \\
+        (\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) & (\beta^2 (\alpha^2 + \sigma^2) + \sigma^2)
+        \end{bmatrix} \\
+    v^{-1} &= \frac{1}{(\alpha^2 + \sigma^2)(\beta^2 + \sigma^2 - \beta - \gamma_1 \gamma_2)}
+        \begin{bmatrix}
+             (\beta^2 (\alpha^2 + \sigma^2) + \sigma^2) & -(\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) \\
+            -(\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) & (\alpha^2 + \sigma^2)
+        \end{bmatrix} \\
+    v^{-1} c &=
+        \frac{1}{(\alpha^2 + \sigma^2)(\beta^2 + \sigma^2 - \beta - \gamma_1 \gamma_2)}
+        \begin{bmatrix}
+             (\beta^2 (\alpha^2 + \sigma^2) + \sigma^2) & -(\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) \\
+            -(\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) & (\alpha^2 + \sigma^2)
+        \end{bmatrix} \\
+        &~~~~\begin{bmatrix}
+            (\alpha^2 + \sigma^2)(\gamma_1 + \beta \gamma_2) \\
+            (\beta^2 (\alpha^2 + \sigma^2) + \sigma^2) \gamma_2 + (\alpha^2 + \sigma^2)\beta \gamma_2
+        \end{bmatrix} \\
+        &= 
+\end{align*}

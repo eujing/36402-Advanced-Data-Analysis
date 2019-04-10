@@ -143,10 +143,10 @@ It makes sense that there are 28 entries as we only have 1 row of loadings by se
 ```{r}
 barplot(sort(one.factor$loadings[, 1]), las = 1,
         xlab = "Company", ylab = "Loading",
-        main = "Plot of loading against company")
+        main = "Plot of loading by company")
 ```
 
-The minimum loading is around 0.50, while the maximum loading is around 0.85. Most of the loadings are also around a small range from 0.6 to 0.7.
+The minimum loading is around 0.50, while the maximum loading is around 0.85. Most of the loadings are also around a narrow range from 0.6 to 0.7.
 
 ```{r}
 plot(dates[2:n], one.factor$scores, type = "l",
@@ -245,3 +245,114 @@ arrows(x,
        one.factor.loadings.cis[sorted.idx, 2],
        length = 0.05, angle = 90, code = 3)
 ```
+
+\newpage
+
+# Question 5
+
+**a)**
+
+```{r}
+cov.GE.CVX <- cov(l.returns[, "GE"], l.returns[, "CVX"])
+cov.GE.BA <- cov(l.returns[, "GE"], l.returns[, "BA"])
+cov.GS.CVX <- cov(l.returns[, "GS"], l.returns[, "CVX"])
+cov.GS.BA <- cov(l.returns[, "GS"], l.returns[, "BA"])
+results <- matrix(c(cov.GE.CVX, cov.GE.BA, cov.GS.CVX, cov.GE.BA),
+                  nrow = 2, ncol = 2, byrow = TRUE)
+rownames(results) <- c("GE", "GS")
+colnames(results) <- c("CVX", "BA")
+kable(signif(results, 3), caption = "Covaiances in log returns")
+```
+
+**b)**
+
+In the one-factor model, we know that $\Cov{X_i, X_j} = w_i w_j$, where $w_i, w_j$ are the respective loadings for each variable. Hence, we have that
+\begin{align*}
+\frac{\Cov{GE, CVX} / \Cov{GE, BA}}{\Cov{GS, CVX} / \Cov{GS, BA}} &=
+    \frac{w_{GE} w_{CVX}}{w_{GE} w_{BA}} \frac{w_{GS} w_{BA}}{w_{GS} w_{CVX}} \\
+    &= \frac{w_{CVX}}{w_{BA}} \frac{w_{BA}}{w_{CVX}} \\
+    &= 1
+\end{align*}
+
+**c)**
+
+```{r}
+obs.cov.ratio <- (cov.GE.CVX / cov.GE.BA) / (cov.GS.CVX / cov.GS.BA)
+
+cov.ratio.simulator <- function(new.data) {
+    ratio <- (cov(new.data[, "GE"], new.data[, "CVX"]) / cov(new.data[, "GE"], new.data[, "BA"])) /
+            (cov(new.data[, "GS"], new.data[, "CVX"]) / cov(new.data[, "GS"], new.data[, "BA"]))
+    return(ratio)
+}
+
+cov.ratio.cis <- bootstrap.ci(statistic = cov.ratio.simulator,
+                              simulator = resample.cases,
+                              B = 300, level = 0.90,
+                              t.hat = obs.cov.ratio)
+rownames(cov.ratio.cis) <- NULL
+```
+```{r}
+kable(signif(cov.ratio.cis, 3), caption = "90% C.I for covariance ratio")
+```
+
+Since the 90% C.I for the ratio contains 1, we can conclude with 90% confidence that there is insufficient evidence from the data that the one-factor model is wrong.
+
+\newpage
+
+# Question 6
+
+```{r fig.height = 6}
+two.factor <- factanal(l.returns, factors = 2, scores = "regression")
+company.order <- order(one.factor$loadings[, 1])
+barplot(two.factor$loadings[company.order, 1], las = 1,
+        ylim = c(0.0, max(two.factor$loadings)),
+        col = rgb(0, 0, 1, 0.5),
+        xlab = "Company", ylab = "Loading",
+        main = "Plot of loading of 1st factor by company")
+barplot(two.factor$loadings[company.order, 2], las = 1,
+        col = rgb(1, 0, 0, 0.5), add = TRUE)
+legend("topleft", legend = c("1st Factor", "2nd Factor"),
+       col = c("blue", "red"), pch = 15)
+```
+
+The bar plot features the companies in the same order as in Q3b)
+
+The loading of the 1st factor for most companies is around the narrow range of 0.5 to 0.7, with 4 companies having lower loadings between 0.2 to 0.4. It should also be noted that the loading of this 1st factor has changed from the loadings in the one-factor model, being lower in general. This decrement in 1st factor affects each company differently, some more than others.
+
+The loading of the 2nd factor for most companies is aound the narrow range of 0.2 to 0.5, with 3 companies having higher loadings above 0.5. In general, we can see that the second set of loadings are smaller than the first set. However, an interesting pattern is present where companies with lower-than-usual 1st factor loadings have higher-than-usual 2nd factor loadings.
+
+\newpage
+
+# Question 7
+
+```{r}
+n <- nrow(tricky_prices)
+l.returns.2 <- log(tricky_prices[2:n, ] / tricky_prices[1:(n-1), ])
+matplot(dates[2:n], l.returns.2, type = "l", lty = 1,
+        col = adjustcolor(1:6, alpha.f = 0.4),
+        xaxt = "n", xlab = "Dates in 2015", ylab = "Log Returns",
+        main = "Plot of log returns against dates in 2015")
+axis(1, dates[2:n], format(dates[2:n], "%b %d"))
+one.factor.2 <- factanal(l.returns.2, factors = 1, scores = "regression")
+new.company.order <- c(company.order, 29, 30)
+barplot(one.factor$loadings[company.order, 1], las = 1,
+        col = rgb(0, 0, 1, 0.5),
+        xlab = "Companies", ylab = "Loading",
+        main = "Plot of loadings by company")
+barplot(one.factor.2$loadings[new.company.order, 1], las = 1,
+        col = rgb(1, 0, 0, 0.5), add = TRUE)
+
+plot(dates[2:n], one.factor.2$scores, type = "l", col = "red",
+     xlab = "Dates in 2015", ylab = "Factor score", xaxt = "n",
+     main = "Plot of factor score against dates in 2015")
+lines(dates[2:n], one.factor$scores)
+legend("topleft", legend = c("Original", "With 2 new companies"),
+       lty = 1, col = c("red", "black"))
+axis(1, dates[2:n], format(dates[2:n], "%b %d"))
+```
+
+From timeseries plot of log returns, we can see that each of the two companies added have a large anomaly, represented by the large negative spike in log returns around March and December.
+
+However, once we fit a new one-factor model to his dataset with the two companies added, we find that the loadings of all the previous companies are exactly the same, as shown by the barplot. The two new companies, have relatively lower loadings compared to the previous et of companies. It seems as though the addition of these 2 companies did not affect the previous loadings much.
+
+This is confirmed by the timeseries plot of factor score, which did not change much from the original plot. Since the two new companies have log returns over time that have large anomalies from the general pattern of the other companies, we find that they have low loadings in the one-factor model as they do notreflect a similar measurement of the pattern the other companies exhibit. Since the loadings of the other companies did not change and the two new companies have low loadings, we find that the factor score over time is not affected much by these two new companies, mainly due to their low loading, mainly due to their low loadings.

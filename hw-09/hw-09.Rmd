@@ -1,0 +1,408 @@
+---
+title: "36-402 Homework 9"
+author:
+- Eu Jing Chua
+- eujingc
+date: "9 April, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+\newcommand{\rarr}{\rightarrow}
+\newcommand{\larr}{\leftarrow}
+
+# Question 1
+
+**a)**
+
+\begin{align*}
+\Var{Y} &= \Var{\alpha X + \epsilon} \\
+    &= \alpha^2 \Var{X} + \sigma^2 = \alpha^2 + \sigma^2 \\
+\Var{Z} &= \Var{\beta_1 X + \beta_2 Y + \eta} \\
+    &= \Var{\beta_1 X + \alpha \beta_2 X + \beta_2 \epsilon + \eta} \\
+    &= \Var{(\beta_1 + \alpha \beta_2) X + \beta_2 \epsilon + \eta} \\
+    &= (\beta_1 + \alpha \beta_2)^2 + \beta_2^2 \sigma^2 + \sigma^2 \\
+    &= (\beta_1 + \alpha \beta_2)^2 + (\beta_2^2 + 1)\sigma^2 \\
+\end{align*}
+
+**b)**
+
+$X \rightarrow Y$ is open when conditioned on nothing.  
+$X \rightarrow Z \leftarrow Y$ is open when conditioned on $Z$.
+
+**c)**
+
+$X \rightarrow Z$ and $X \rightarrow Y \rightarrow Z$ are open when conditioned on nothing.  
+$X \rightarrow Z$ is open when conditioned on $Y$.
+
+**d)**
+
+\begin{align*}
+\Cov{X, Y} &= \Var{X} \alpha = \alpha \\
+\Cov{X, Z} &= \Var{X} \beta_1 + \Var{X} \alpha \beta_2 = \beta_1 + \alpha \beta_2 \\
+\Cov{Y, Z} &= \Var{X} \alpha \beta_1 + \Var{Y} \beta_2 \\
+    &= \alpha \beta_1 + (\alpha^2 + \sigma^2) \beta_2
+\end{align*}
+
+**e)**
+
+The population coefficient for $Y$ against $X$ is:
+\begin{align*}
+    \frac{\Cov{X, Y}}{\Var{X}} &= \alpha
+\end{align*}
+
+**f)**
+
+The population coefficient for $Z$ against $X$ is:
+\begin{align*}
+    \frac{\Cov{X, Z}}{\Var{X}} &= \beta_1 + \alpha \beta_2
+\end{align*}
+
+**g)**
+The population coefficient for $Z$ against $X$ and $Y$ is:
+\begin{align*}
+    c &= \begin{bmatrix} \beta_1 + \alpha \beta_2 \\ \alpha \beta_1 + (\alpha^2 + \sigma^2) \beta_2 \end{bmatrix} \\
+    v &= \begin{bmatrix} 1 & \alpha \\ \alpha & (\alpha^2 + \sigma^2) \end{bmatrix} \\
+    v^{-1} &= \frac{1}{\sigma^2}\begin{bmatrix} (\alpha^2 + \sigma^2) & -\alpha \\ -\alpha & 1 \end{bmatrix} \\
+    v^{-1} c &= \frac{1}{\sigma^2}\begin{bmatrix} (\alpha^2 + \sigma^2) & -\alpha \\ -\alpha & 1 \end{bmatrix} \begin{bmatrix} \beta_1 + \alpha \beta_2 \\ \alpha \beta_1 + (\alpha^2 + \sigma^2) \beta_2 \end{bmatrix} \\
+        &= \frac{1}{\sigma^2}
+            \begin{bmatrix}
+                (\alpha^2 + \sigma^2)(\beta_1 + \alpha \beta_2) - \alpha^2 \beta_1 - (\alpha^2 + \sigma^2) \alpha \beta_2 \\
+                -\alpha \beta_1 - \alpha^2 \beta_2 + \alpha \beta_1 + (\alpha^2 + \sigma^2) \beta_2
+            \end{bmatrix} \\
+        &= \frac{1}{\sigma^2}
+            \begin{bmatrix}
+                (\alpha^2 + \sigma^2)\beta_1 - \alpha^2 \beta_1 \\
+                -\alpha^2 \beta_2 + (\alpha^2 + \sigma^2) \beta_2
+            \end{bmatrix} \\
+        &= \frac{1}{\sigma^2}
+            \begin{bmatrix}
+                \sigma^2 \beta_1 \\
+                \sigma^2 \beta_2
+            \end{bmatrix} \\
+        &= \begin{bmatrix}
+                \beta_1 \\
+                \beta_2
+            \end{bmatrix}
+\end{align*}
+
+**h)**
+
+\begin{align*}
+c &= \begin{bmatrix} \alpha \\ \alpha \beta_1 + (\alpha^2 + \sigma^2) \beta_2 \end{bmatrix} \\
+v &= \begin{bmatrix} 1 & \beta_1 + \alpha \beta_2 \\ \beta_1 + \alpha \beta_2 & (\beta_1 + \alpha \beta_2)^2 + (\beta_2^2 + 1) \sigma^2 \end{bmatrix} \\
+v^{-1} &= \frac{1}{(\beta_2^2 + 1) \sigma^2}
+    \begin{bmatrix} (\beta_1 + \alpha \beta_2)^2 + (\beta_2^2 + 1) \sigma^2 & -\beta_1 - \alpha \beta_2 \\ -\beta_1 - \alpha \beta_2 & 1 \end{bmatrix}
+\end{align*}
+
+The population coefficient of $X$ is then given by:
+\begin{align*}
+    &\frac{1}{(\beta_2^2 + 1) \sigma^2} \begin{bmatrix} (\beta_1 + \alpha \beta_2)^2 + (\beta_2^2 + 1) \sigma^2 & -\beta_1 - \alpha \beta_2 \end{bmatrix} 
+    \begin{bmatrix} \alpha \\ \alpha \beta_1 + (\alpha^2 + \sigma^2) \beta_2 \end{bmatrix} \\
+    &= \frac{\alpha (\beta_1 + \alpha \beta_2)^2 + \alpha \sigma^2 (\beta_2^2 + 1) - \alpha \beta_1^2 - \alpha^2 \beta_1 \beta_2 - (\beta_1 + \alpha \beta_2)(\alpha^2 + \sigma^2) \beta_2}
+            {(\beta_2^2 + 1) \sigma^2} \\
+    &= \frac{\alpha (\beta_1 + \alpha \beta_2)^2 + \alpha \sigma^2 (\beta_2^2 + 1) - \alpha \beta_1 (\beta_1 + \alpha \beta_2) - (\beta_1 + \alpha \beta_2)(\alpha^2 + \sigma^2) \beta_2}
+            {(\beta_2^2 + 1) \sigma^2} \\
+    &= \frac{\alpha (\beta_1 + \alpha \beta_2)^2 + \alpha \sigma^2 (\beta_2^2 + 1) - (\alpha \beta_1 + (\alpha^2 + \sigma^2) \beta_2) (\beta_1 + \alpha \beta_2)}
+            {(\beta_2^2 + 1) \sigma^2} \\
+    &= \frac{\alpha \sigma^2 (\beta_2^2 + 1) + (\alpha \beta_1 + \alpha^2 \beta_2 - \alpha \beta_1 - (\alpha^2 + \sigma^2) \beta_2) (\beta_1 + \alpha \beta_2)}
+            {(\beta_2^2 + 1) \sigma^2} \\
+    &= \frac{\alpha \sigma^2 (\beta_2^2 + 1) - \sigma^2 \beta_2 (\beta_1 + \alpha \beta_2)}
+            {(\beta_2^2 + 1) \sigma^2} \\
+    &= \frac{\alpha \beta_2^2 + \alpha - \beta_1 \beta_2 - \alpha \beta_2^2}
+            {(\beta_2^2 + 1)} \\
+    &= \frac{\alpha - \beta_1 \beta_2}
+            {(\beta_2^2 + 1)} \\
+\end{align*}
+
+\newpage
+
+# Question 2
+
+**a)** Open paths from $X$ to $Y$.
+
+Conditioning on nothing,
+
+ * $X \rarr R \rarr Y$
+ * $X \rarr R \rarr Q \rarr Y$
+ * $X \rarr Q \rarr Y$
+ * $X \larr U \rarr Y$
+
+Conditioning on $U$:
+
+ * $X \rarr R \rarr Y$
+ * $X \rarr R \rarr Q \rarr Y$
+ * $X \rarr Q \rarr Y$
+
+Conditioning on $R$:
+
+ * $X \rarr Q \rarr Y$
+ * $X \larr U \rarr Y$
+
+Conditioning on $Q$,
+
+ * $X \rarr R \rarr Y$
+ * $X \larr U \rarr Y$
+
+Conditioning on $R$ and $Q$,
+
+ * $X \larr U \rarr Y$
+
+Conditioning on $U$, $R$ and $Q$, there are no open paths.
+
+\newpage
+
+**b)** Open paths from R to Y.
+
+Conditioning on nothing:
+
+ * $R \rarr Y$
+ * $R \rarr Q \rarr Y$
+ * $R \larr X \rarr Q \rarr Y$
+ * $R \larr X \larr U \rarr Y$
+
+Conditioning on $X$:
+
+ * $R \rarr Y$
+ * $R \rarr Q \rarr Y$
+
+Conditioning on $X$ and $U$:
+
+ * $R \rarr Y$
+ * $R \rarr Q \rarr Y$
+
+Conditioning on $X$, $U$ and $Q$:
+
+ * $R \rarr Y$
+
+**c)** Open paths from X to Q.
+
+Conditioning on nothing:
+
+ * $X \rarr Q$
+ * $X \rarr R \rarr Q$
+
+Conditioning on $Y$:
+
+ * $X \rarr Q$
+ * $X \rarr R \rarr Q$
+ * $X \rarr R \rarr Y \larr Q$
+ * $X \larr U \rarr Y \larr Q$
+
+Conditioning on $U$:
+
+ * $X \rarr Q$
+ * $X \rarr R \rarr Q$
+
+Conditioning on $U$ and $Y$:
+
+ * $X \rarr Q$
+ * $X \rarr R \rarr Q$
+ * $X \rarr R \rarr Y \larr Q$
+
+Conditioning on $R$:
+
+ * $X \rarr Q$
+
+Conditioning on $R$ and $Y$:
+
+ * $X \rarr Q$
+ * $X \larr U \rarr Y \larr Q$
+
+**d)** Population coefficient of $X$ in linear regression of $Y$ against $X$:
+
+\begin{align*}
+    \Cov{Y, X} &= \Var{X} \beta \delta_1 + \Var{X} \beta \gamma_2 \delta_2 + \Var{X} \gamma_1 \delta_2 + \Var{U} \alpha \delta_3 \\
+        &= (\alpha^2 + \sigma^2)(\beta \delta_1 + \beta \gamma_2 \delta_2 + \gamma_1 \delta_2) + \alpha \delta_3 \\
+    \frac{\Cov{Y, X}}{\Var{X}}
+        &= \beta \delta_1 + \beta \gamma_2 \delta_2 + \gamma_1 \delta_2 + \frac{\alpha \delta_3}{\alpha^2 + \sigma^2}
+\end{align*}
+
+**e)**
+
+\begin{align*}
+    \Cov{R, X} &= \Var{X} \beta + \Var{X} \gamma_1 \gamma_2 \\
+        &= (\alpha^2 + \sigma^2)(\beta + \gamma_1 \gamma_2) \\
+    \frac{\Cov{R}}{\Var{X}} &= \beta + \gamma_1 \gamma_2
+\end{align*}
+
+**f)** The coefficient for $X$ is $\gamma_1$, and for $R$ is $\gamma_2$.
+
+**g)** The coefficient for X should not be 0, as given Q and R, there is still an open path from X to Y via $X \larr U \rarr Y$, so $X$ is not indepenedent on $Y$ conditioned on $Q$ and $R$.
+
+# Question 3
+
+**a)** There is an open path from Amount of smoking $\rarr$ Amount of tar in lungs $\rarr$ Cellular damage $\rarr$ Cancer in the graph, as Cancer is a descendent of Amount of smoking.
+
+**b)**
+
+We could condition on the sets:
+
+* {Amount of Tar in Lungs, Occupational Prestige}
+* {Amount of Tar in Lungs, Asbestos Exposure}
+* {Cellular Damage}
+
+**c)** The only case in which conditioning on even more variables results in the possibility of an open path is when we condition on the middle variable of a collider.  
+However, the only collider relevant would be Amount of smoking $\rarr$ Yellowing of Teeth $\larr$ Access to Dental Care. Even if we open up this collider, all possible paths still have to pass through one of the sets of conditioned variables above, which block paths. Thus, this will not be possible for this graph.
+
+**d)** We could condition on Occupational Prestige.  
+Then, additionally conditioning on Cellular Damage would make them dependent again.  
+Finally, we could additionally condition on Amount of smoking to make them independent again.
+
+\newpage
+
+# Question 4
+
+**a)**
+
+```{r}
+library(knitr)
+data <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/hw/09/smoke.csv")
+
+glm.fit.smoke <- glm(cancer ~ smoking, data = data, family = "binomial")
+kable(signif(coef(glm.fit.smoke)[2], 3), caption = "Coefficient of smoking")
+```
+
+With every unit increase in smoking, we predict that the log-odds of smoking increases by `r signif(coef(glm.fit.smoke)[2], 3)`.
+
+**b)**
+
+```{r}
+glm.fit.smoke.teeth <- glm(cancer ~ smoking + teeth, data = data, family = "binomial")
+kable(signif(coef(glm.fit.smoke.teeth)[2], 3), caption = "Coefficient of smoking")
+```
+
+For a fixed level of yellowing of teeth, with every unit increase in smoking, we predict that the log-odds of smoking increases by `r signif(coef(glm.fit.smoke.teeth)[2], 3)`.
+
+**c)**
+
+```{r}
+glm.fit.smoke.asbestos <- glm(cancer ~ smoking + asbestos, data = data, family = "binomial")
+kable(signif(coef(glm.fit.smoke.asbestos)[2], 3), caption = "Coefficient of smoking")
+```
+
+For a fixed value of asbestos exposure, with every unit increase in smoking, we predict that the log-odds of smoking increases by `r signif(coef(glm.fit.smoke.asbestos)[3], 3)`.
+
+**d)**
+
+```{r}
+glm.fit.all <- glm(cancer ~ cellular + tar + teeth + dental + smoking + asbestos + occupation, data = data, family = "binomial")
+kable(signif(coef(glm.fit.all)[6], 3), caption = "Coefficient of smoking")
+```
+
+For a fixed value of all other covariates, with every unit increase in smoking, we predict that the log-odds of smoking decreases by `r signif(-coef(glm.fit.all)[6], 3)`.
+
+**e)** The regression of cancer against smoking, controlling for asbestos exposure.  
+By controlling for asbestos exposure, we block the backdoor path where asbestos exposure is confounding. After, there is only one direct path from smoking to cancer that is unblocked, satisfying the backdoor criterion, hence we can make causal inference from the regression.
+
+**f)**
+```{r}
+library(boot)
+```
+```{r cache = TRUE}
+models <- list(glm.fit.smoke, glm.fit.smoke.asbestos, glm.fit.smoke.teeth, glm.fit.all)
+cv.errs <- lapply(models, FUN=function(m) cv.glm(data, m)$delta[2])
+```
+```{r}
+results <- unlist(cv.errs)
+names(results) <- c("Smoking", "Smoking and Asbestos", "Smoking and Teeth", "All")
+kable(signif(results, 3), caption = "CV errors of models")
+```
+
+As the model of cancer against smoking and asbestos exposure has the lowest cross-validation error, we expect it to have the least generalization error and thus would be the most ideal for an insurance company to predict how likely a customer is to get cancer.
+
+# Question 5
+
+**a)** Amount of tar in lungs is statistically independent of Cancer conditioned on Amount of smoking in figure 4, but not figure 3.
+
+**b)** There is no independence relation that holds in figure 3 but not figure 4. Assuming a independence relation between any two variables in figure 3, we cannot create dependence by removing edges only as in figure 4, as there are now less possible open paths.
+
+**c)** We know that if the data came from figure 4, then Cancer is statistically independent of Tar in lungs controlling for Amount of smoking, which would result in a true logistic regression coefficient of 0. Otherwise if there is dependence, the coefficient is expected to be non-zero. We could test this with a bootstrapped confidence interval on the coefficient of Tar in lungs in the model to see if it contains 0.
+
+```{r}
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+```{r}
+glm.simulator <- function(new.data) {
+    new.glm.fit <- glm(cancer ~ tar + smoking, data = new.data, family = "binomial")
+    return(coef(new.glm.fit)[2])
+}
+
+resample.cases <- function() {
+    resample.data.frame(data)
+}
+
+obs.coef <- coef(glm(cancer ~ tar + smoking, data = data, family = "binomial"))[2]
+coef.ci <- bootstrap.ci(statistic = glm.simulator,
+                        simulator = resample.cases,
+                        B = 300, level = 0.95,
+                        t.hat = obs.coef)
+```
+```{r}
+kable(signif(coef.ci, 3), caption = "95% C.I for tar")
+```
+
+We use case-resampling to bootstrap a 95% C.I for the coefficient of tar in lungs, and see that it does indeed contain 0. Hence, we can be 95% confident that the data came from figure 4.
