@@ -1,0 +1,87 @@
+---
+title: "36-402 Homework 10"
+author:
+- Eu Jing Chua
+- eujingc
+date: "April 14, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+library(np)
+options(np.messages = FALSE)
+```
+
+# Question 1
+
+```{r cache = TRUE}
+sesame <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/hw/10/sesame.csv")
+diff.vars <- c("let", "body", "form", "numb", "relat", "clasf")
+for (dv in diff.vars) {
+    dif <- sesame[, paste("post", dv, sep = "")] - sesame[, paste("pre", dv, sep = "")]
+    sesame[, paste("delta", dv, sep = "")] <- dif
+}
+```
+
+We can check if the deltas are correct by adding them back to the pre-test values and seeing if they match the post-test values.
+
+```{r}
+deltas.correct <- sapply(diff.vars, function(dv) {
+    all.equal(sesame[, paste("pre", dv, sep = "")] + sesame[, paste("delta", dv, sep = "")],
+              sesame[, paste("post", dv, sep = "")])
+})
+kable(deltas.correct, caption = "Check for Pre-test + Delta = Post-test")
+```
+
+# Question 2
+
+**Q2 a)**
+
+```{r}
+reg.sesame <- subset(sesame, regular == 1)
+notreg.sesame <- subset(sesame, regular == 0)
+
+reg.deltalet.mean <- mean(reg.sesame$deltalet)
+reg.deltalet.se <- sd(reg.sesame$deltalet) / sqrt(nrow(reg.sesame))
+
+notreg.deltalet.mean <- mean(notreg.sesame$deltalet)
+notreg.deltalet.se <- sd(notreg.sesame$deltalet) / sqrt(nrow(notreg.sesame))
+
+diff.deltalet.mean <- reg.deltalet.mean - notreg.deltalet.mean
+diff.deltalet.se <- sqrt(reg.deltalet.se^2 + notreg.deltalet.se^2)
+
+results <- matrix(nrow = 3, ncol = 2)
+colnames(results) <- c("Estimate", "SE")
+rownames(results) <- c("Regular watchers mean", "Irregular watchers mean", "Difference in means")
+results[1, ] <- c(reg.deltalet.mean, reg.deltalet.se)
+results[2, ] <- c(notreg.deltalet.mean, notreg.deltalet.se)
+results[3, ] <- c(diff.deltalet.mean, diff.deltalet.se)
+
+kable(results, digits = 3, caption = "Estimates for deltalet")
+```
+
+**Q2 b)**
+
+```{r}
+
+```
+
