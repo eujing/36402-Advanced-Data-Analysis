@@ -81,7 +81,5 @@ kable(results, digits = 3, caption = "Estimates for deltalet")
 
 **Q2 b)**
 
-```{r}
-
-```
-
+In order for this difference in means to be a sound estimate of the causal effect of switching from, there must be no other confounding sources that affect the subjects' knowledge of letters and whether they are regular watchers or not. This may not be realistic, as other variables such as age and social background could affect their knowledge of letters.  
+We could test this by using a linear regression model of `deltalet` against `regular`,
