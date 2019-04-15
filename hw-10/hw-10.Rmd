@@ -82,4 +82,137 @@ kable(results, digits = 3, caption = "Estimates for deltalet")
 **Q2 b)**
 
 In order for this difference in means to be a sound estimate of the causal effect of switching from, there must be no other confounding sources that affect the subjects' knowledge of letters and whether they are regular watchers or not. This may not be realistic, as other variables such as age and social background could affect their knowledge of letters.  
-We could test this by using a linear regression model of `deltalet` against `regular`,
+We could test this by using a linear regression model of `deltalet` against `regular`, TODO
+
+\newpage
+
+# Question 3
+
+**Q3 a)**
+
+```{r}
+lm.deltalet <- lm(deltalet ~ factor(regular) + factor(site) + factor(sex) + age + factor(setting) + factor(encour) + peabody + prelet + prebody + preform + prenumb + prerelat + preclasf, data = sesame)
+```
+
+```{r}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+```{r}
+coefs.estimator <- function(new.data) {
+    new.lm.fit <- lm(deltalet ~ factor(regular) + factor(site) + factor(sex) + age + factor(setting) + factor(encour) + peabody + prelet + prebody + preform + prenumb + prerelat + preclasf, data = new.data)
+    return(coef(new.lm.fit))
+}
+coefs <- rboot(statistic = coefs.estimator,
+               simulator = function() resample.data.frame(sesame),
+               B = 300)
+```
+
+```{r}
+results <- matrix(nrow = nrow(coefs), ncol = 2)
+colnames(results) <- c("Coefficient", "SE")
+rownames(results) <- rownames(coefs)
+results[, 1] <- coef(lm.deltalet)
+results[, 2] <- apply(coefs, 1, sd)
+kable(signif(results, 3), caption = "Coefficients and SE of linear regression")
+```
+
+**Q3 b)**
+
+`id` should not be included in the regression as it is simply the ID number of the subject, having no relationship at all to the study besides identifying subjects.  
+`viewcat` should not be included too as the other covariate `regular` is a direct indicator of `viewcat`. Since `regular` is directly derived from `viewcat`, including both would be redundant and introduce problems with highly correlated covariates in linear regression.  
+Similarly, we exlude all the `post` variables as it is essentially the same as what we want to predict, as the `post` variables are the result of `pre` variables added with the `delta` variables. If we already knew the `post` variables, we would not be predicting anything useful or new.
+
+
+**Q3 c)**
+
+Someone who only took 401 might report that the average effect of making a child become a regular watcher of Sesame Street is an increase of `r signif(coef(lm.deltalet)[2], 3)` in score of the letter test.
+
+**Q3 d)**
+
+To infer the causal effect of becoming a regular watcher of Sesame Street on the change in score of the letter test based on the above model, we would first need to assume there are no other confounding sources between the two variables. Additionally, we also need to assume that all the additional covariates we are are controlling do not create new confounding sources by controlling for them. This is plausible but highly unlikely as including everything blindly increases the chances of creating new confounding sources.
+
+\newpage
+
+# Question 4
+
+**Q4 a)**
+
+The set of variables are `setting` and `site`.
+
+**Q4 b)** Using a kernel regression with cross-validated bandwidths,
+
+```{r cache = TRUE}
+npr.fit <- npreg(deltalet ~ factor(regular) + factor(setting) + factor(site), data = sesame)
+sesame.reg <- data.frame(sesame)
+sesame.reg$regular <- rep(1, nrow(sesame))
+sesame.notreg <- data.frame(sesame)
+sesame.notreg$regular <- rep(0, nrow(sesame))
+avg.reg.effect <- mean(predict(npr.fit, newdata = sesame.reg) - predict(npr.fit, newdata = sesame.notreg))
+
+avg.reg.estimator <- function(new.data) {
+    new.npr.fit <- npreg(deltalet ~ factor(regular) + factor(setting) + factor(site), data = sesame)
+    sesame.reg <- data.frame(new.data)
+    sesame.reg$regular <- rep(1, nrow(new.data))
+    sesame.notreg <- data.frame(new.data)
+    sesame.notreg$regular <- rep(0, nrow(new.data))
+    return(mean(predict(new.npr.fit, newdata = sesame.reg) - predict(new.npr.fit, newdata = sesame.notreg)))
+}
+avg.reg.effects <- rboot(statistic = avg.reg.estimator,
+                         simulator = function() resample.data.frame(sesame),
+                         B = 10)
+```
+```{r}
+results <- c(avg.reg.effect, apply(avg.reg.effects, 1, sd))
+names(results) <- c("Average treatment effect", "SE")
+kable(signif(results, 3), caption = "Average treatment effect of regular watching")
+```
+
+
