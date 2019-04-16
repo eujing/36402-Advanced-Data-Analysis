@@ -8,6 +8,8 @@ output:
   pdf_document: default
 header-includes:
     - \usepackage{enumerate}
+    - \usepackage{txfonts}
+    - \usepackage{amsmath}
 ---
 
 ```{r setup, include=FALSE}
@@ -183,21 +185,19 @@ To infer the causal effect of becoming a regular watcher of Sesame Street on the
 
 # Question 4
 
-**Q4 a)**
-
-The set of variables are `setting` and `site`.
+**Q4 a)** The set of variables are `setting` and `site`.
 
 **Q4 b)** Using a kernel regression with cross-validated bandwidths,
 
 ```{r cache = TRUE}
-npr.fit <- npreg(deltalet ~ factor(regular) + factor(setting) + factor(site), data = sesame)
+npr.fit.1 <- npreg(deltalet ~ factor(regular) + factor(setting) + factor(site), data = sesame)
 sesame.reg <- data.frame(sesame)
 sesame.reg$regular <- rep(1, nrow(sesame))
 sesame.notreg <- data.frame(sesame)
 sesame.notreg$regular <- rep(0, nrow(sesame))
-avg.reg.effect <- mean(predict(npr.fit, newdata = sesame.reg) - predict(npr.fit, newdata = sesame.notreg))
+avg.reg.effect.1 <- mean(predict(npr.fit.1, newdata = sesame.reg) - predict(npr.fit.1, newdata = sesame.notreg))
 
-avg.reg.estimator <- function(new.data) {
+avg.reg.estimator.1 <- function(new.data) {
     new.npr.fit <- npreg(deltalet ~ factor(regular) + factor(setting) + factor(site), data = sesame)
     sesame.reg <- data.frame(new.data)
     sesame.reg$regular <- rep(1, nrow(new.data))
@@ -205,14 +205,134 @@ avg.reg.estimator <- function(new.data) {
     sesame.notreg$regular <- rep(0, nrow(new.data))
     return(mean(predict(new.npr.fit, newdata = sesame.reg) - predict(new.npr.fit, newdata = sesame.notreg)))
 }
-avg.reg.effects <- rboot(statistic = avg.reg.estimator,
+avg.reg.effects.1 <- rboot(statistic = avg.reg.estimator.1,
                          simulator = function() resample.data.frame(sesame),
-                         B = 10)
+                         B = 100)
 ```
 ```{r}
-results <- c(avg.reg.effect, apply(avg.reg.effects, 1, sd))
+results <- c(avg.reg.effect.1, apply(avg.reg.effects.1, 1, sd))
 names(results) <- c("Average treatment effect", "SE")
-kable(signif(results, 3), caption = "Average treatment effect of regular watching")
+kable(signif(results, 3), caption = "Average effect of regular watching")
 ```
 
+# Question 5
 
+**Q5 a)** Now just `prelet` satisfies the backdoor criterion. This is because all backdoor paths from `regular` to `deltalet` now pass through a chain where `prelet` is in the middle, so blocking this bath would block all backdoor paths. In the previous graph, there was no path from `regular` to `deltalet` through prelet, hence this was not possible.
+
+**Q5 b)** The previous set of variables are no longer sufficient to satisfy the backdoor criterion, as there is still an open backdoor path from `regular` $\leftarrow$ `U` $\rightarrow$ `prelet` $\rightarrow$ `deltalet`.
+
+**Q5 c)** Using a kernel regression with cross-validated bandwidths,
+
+```{r cache = TRUE}
+npr.fit.2 <- npreg(deltalet ~ factor(regular) + prelet, data = sesame)
+sesame.reg <- data.frame(sesame)
+sesame.reg$regular <- rep(1, nrow(sesame))
+sesame.notreg <- data.frame(sesame)
+sesame.notreg$regular <- rep(0, nrow(sesame))
+avg.reg.effect.2 <- mean(predict(npr.fit.2, newdata = sesame.reg) - predict(npr.fit.2, newdata = sesame.notreg))
+
+avg.reg.estimator.2 <- function(new.data) {
+    new.npr.fit <- npreg(deltalet ~ factor(regular) + prelet, data = sesame)
+    sesame.reg <- data.frame(new.data)
+    sesame.reg$regular <- rep(1, nrow(new.data))
+    sesame.notreg <- data.frame(new.data)
+    sesame.notreg$regular <- rep(0, nrow(new.data))
+    return(mean(predict(new.npr.fit, newdata = sesame.reg) - predict(new.npr.fit, newdata = sesame.notreg)))
+}
+avg.reg.effects.2 <- rboot(statistic = avg.reg.estimator.2,
+                         simulator = function() resample.data.frame(sesame),
+                         B = 100)
+```
+```{r}
+results <- c(avg.reg.effect.2, apply(avg.reg.effects.2, 1, sd))
+names(results) <- c("Average treatment effect", "SE")
+kable(signif(results, 3), caption = "Average effect of regular watching")
+```
+
+**Q5 d)**
+
+In figure 1, `regular` $\Perp$ `peabody` $\mid$ `setting`, `site` but not in figure 2. In both figures, `peabody` is only connected to `U`. In figure 1, blocking `setting` and `site` would block all paths from `regular` to `U`, but in figure 2 there is still an extra direct dependence of `regular` on `U`.  
+In figure 2, `deltalet` $\Perp$ `peabody` $\mid$ `regular`, `prelet` but not in figure 1. In figure 2, `deltalet` is only connected to `regular` and `prelet`, so blocking these would block all paths to `U` and hence `peabody`. However in figure 1, `deltalet` has a dependence on `U` directly.
+
+# Question 6
+
+**Q6 a)**
+
+```{r}
+results <- matrix(nrow = 4, ncol = 2)
+colnames(results) <- c("Estimate", "SE")
+rownames(results) <- c("Naive", "Linear Reg. with All", "Control for setting and site", "Control for prelet")
+results[1, ] <- c(diff.deltalet.mean, diff.deltalet.se)
+results[2, ] <- c(coef(lm.deltalet)[2], apply(coefs, 1, sd)[2])
+results[3, ] <- c(avg.reg.effect.1, apply(avg.reg.effects.1, 1, sd))
+results[4, ] <- c(avg.reg.effect.2, apply(avg.reg.effects.2, 1, sd))
+
+kable(results, digits = 3, caption = "Estimates of effect of regular watching on deltalet")
+```
+
+**Q6 b)**
+
+The naive estimate is compatible with controlling for prelet, while the linear regression with all covariates is more loosely compatible with controlling for setting and site.  
+The estimate from controlling for setting and site seemed the most trustworthy, as it has the smallest standard error. Its assumptions also make sense, as social background might have psychological impacts on learning and the site of watching might have an impact on the focus level.
+
+# Question 7
+
+**Q7 a)**
+
+We factor the joint probability according the original graph as
+$$
+\Pr(Y = y, X = x', T = t, V = v) = \Pr(X = x' \mid T = t) \Pr(Y = y \mid Par(Y)) \Pr(T = t \mid Par(T)) \Pr(V = v)
+$$
+
+When we set $X = x$, we make a new graph where all the edges of $X$ are removed. Thus $\Pr(X = x' | T = t)$ becomes $\Pr(X = x')$. Since $X$ is set and no longer random, $\Pr(X = x) = 1$.
+
+Thus for the new graph,
+\begin{align*}
+&\Pr(Y = y, X = x', T = t, V = v \mid do(X = x)) \\
+    &= \Pr(X = x') \Pr(Y = y \mid Par(Y)) \Pr(T = t \mid Par(T)) \Pr(V = v) \\
+    &= \begin{cases}
+        \Pr(Y = y \mid Par(Y)) \Pr(T = t \mid Par(T)) \Pr(V = v), & \text{if } x' = x \text{ so } \Pr(X = x') = 1 \\
+        0, & \text{otherwise as } \Pr(X = x') = 0
+    \end{cases} \\
+    &= \begin{cases}
+        \frac{\Pr(Y = y, X = x', T = t, V = v)}{\Pr(X = x' \mid T = t)} & \text{if } x' = x \\
+        0, & \text{otherwise}
+    \end{cases}
+\end{align*}
+
+**Q7 b)**
+
+\begin{align*}
+\Pr(Y = y, X = x', T = t, V = v \mid do(X = x))
+    &= \begin{cases}
+        \frac{\Pr(Y = y, X = x, T = t, V = v)}{\Pr(X = x' \mid T = t)} & \text{if } x' = x \\
+        0, & \text{otherwise}
+    \end{cases} \\
+    &= \begin{cases}
+        \frac{\Pr(Y = y, V = v \mid X = x, T = t)\Pr(X = x, T = t)}{\Pr(X = x' \mid T = t)} & \text{if } x' = x \\
+        0, & \text{otherwise}
+    \end{cases} \\
+    &= \begin{cases}
+        \Pr(Y = y, V = v \mid X = x, T = t)\Pr(T = t) & \text{if } x' = x \\
+        0, & \text{otherwise}
+    \end{cases} \\
+    &= \begin{cases}
+        \Pr(Y = y, X = x, T = t, V = v \mid X = x, T = t)\Pr(T = t) & \text{if } x' = x \\
+        0, & \text{otherwise}
+    \end{cases}
+\end{align*}
+
+**Q7 c)**
+
+\begin{align*}
+\Pr(Y = y \mid do(X = x)) &= \sum_{x'} \sum_{t} \sum_{v} \Pr(Y = y, X = x', T = t, V = v \mid do(X = x)) \\
+     &= \sum_{x'} \sum_{t} \sum_{v} \mathbb{I}_{\{x' = x\}}
+        \Pr(Y = y, X = x, T = t, V = v \mid X = x, T = t)\Pr(T = t) \\
+     &= \sum_{t} \sum_{v}
+        \Pr(Y = y, V = v \mid X = x, T = t)\Pr(T = t) \\
+     &= \sum_{t} \Pr(T = t) \sum_{v}
+        \Pr(Y = y, V = v \mid X = x, T = t) \\
+     &= \sum_{t} \Pr(T = t)
+        \Pr(Y = y \mid X = x, T = t) \\
+     &= \sum_{t} \Pr(Y = y \mid X = x, T = t) \Pr(T = t)\\
+\end{align*}
