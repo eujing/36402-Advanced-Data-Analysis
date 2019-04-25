@@ -1,0 +1,429 @@
+---
+title: "36-402 Homework 11"
+author:
+- Eu Jing Chua
+- eujingc
+date: "April 24, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+library(AER)
+data("STAR")
+```
+
+```{r}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+# Question 1
+
+**Q1 a)** Using bootstrapping with case resampling to find the standard errors of the coefficients,
+
+```{r cache = TRUE}
+bootstrap.se <- function(statistic, simulator, B) {
+    stats <- rboot(statistic = statistic, simulator = simulator, B = B)
+    return(apply(stats, 1, sd))
+}
+resample.cases <- function () {
+    return(resample.data.frame(STAR))
+}
+
+lm.fit.readk <- lm(readk ~ stark, data = STAR)
+lm.fit.mathk <- lm(mathk ~ stark, data = STAR)
+lm.fit.readk.se <- bootstrap.se(
+    statistic = function (new.data) {
+                    new.lm.fit <- lm(readk ~ stark, data = new.data)
+                    return(coef(new.lm.fit))
+                },
+    simulator = resample.cases,
+    B = 300)
+lm.fit.mathk.se <- bootstrap.se(
+    statistic = function (new.data) {
+                    new.lm.fit <- lm(mathk ~ stark, data = new.data)
+                    return(coef(new.lm.fit))
+                },
+    simulator = resample.cases,
+    B = 300)
+```
+```{r}
+results <- cbind(coef(lm.fit.readk), lm.fit.readk.se)
+colnames(results) <- c("Coefficient", "SE")
+kable(signif(results, 3), caption = "Linear model of readk against stark")
+
+results <- cbind(coef(lm.fit.mathk), lm.fit.mathk.se)
+colnames(results) <- c("Coefficient", "SE")
+kable(signif(results, 3), caption = "Linear model of mathk against stark")
+```
+
+A non-parametric model is not needed in this case as the only predictor is `stark`, a factor with 3 levels, having higher complexity and less interpretability. A linear model is sufficient in modeling the predicted differences between a reference level, which is `regular` in this case, to the other two levels.
+
+**Q1 b)** Again using bootstrapping with case resampling to find the standard errors of coefficients,
+
+```{r cache = TRUE}
+lm.fit.read3 <- lm(read3 ~ stark, data = STAR)
+lm.fit.math3 <- lm(math3 ~ stark, data = STAR)
+lm.fit.read3.se <- bootstrap.se(
+    statistic = function (new.data) {
+                    new.lm.fit <- lm(read3 ~ stark, data = new.data)
+                    return(coef(new.lm.fit))
+                },
+    simulator = resample.cases,
+    B = 300)
+lm.fit.math3.se <- bootstrap.se(
+    statistic = function (new.data) {
+                    new.lm.fit <- lm(math3 ~ stark, data = new.data)
+                    return(coef(new.lm.fit))
+                },
+    simulator = resample.cases,
+    B = 300)
+```
+```{r}
+results <- cbind(coef(lm.fit.read3), lm.fit.read3.se)
+colnames(results) <- c("Coefficient", "SE")
+kable(signif(results, 3), caption = "Linear model of read3 against stark")
+
+results <- cbind(coef(lm.fit.math3), lm.fit.math3.se)
+colnames(results) <- c("Coefficient", "SE")
+kable(signif(results, 3), caption = "Linear model of math3 against stark")
+```
+
+**Q1 c)** The children who were randomly assigned to small classes in kindergarten mostly stayed in small classes through to third grade. Since most of them have had roughly the same treatment through to third grade, there is a high correlation between `stark` and `star3`. Thus, since `star3` is a good predictor of scores in third grade, `stark` will also be a good predictor of the same scores.
+
+**Q1 d)** Again using bootstrapping with case resampling to find the standard errors of coefficients,
+
+```{r cache = TRUE}
+lm.fit.readk.star3 <- lm(readk ~ star3, data = STAR)
+lm.fit.mathk.star3 <- lm(mathk ~ star3, data = STAR)
+lm.fit.readk.star3.se <- bootstrap.se(
+    statistic = function (new.data) {
+                    new.lm.fit <- lm(readk ~ star3, data = new.data)
+                    return(coef(new.lm.fit))
+                },
+    simulator = resample.cases,
+    B = 300)
+lm.fit.mathk.star3.se <- bootstrap.se(
+    statistic = function (new.data) {
+                    new.lm.fit <- lm(mathk ~ star3, data = new.data)
+                    return(coef(new.lm.fit))
+                },
+    simulator = resample.cases,
+    B = 300)
+```
+```{r}
+results <- cbind(coef(lm.fit.readk.star3), lm.fit.readk.star3.se)
+colnames(results) <- c("Coefficient", "SE")
+kable(signif(results, 3), caption = "Linear model of readk against star3")
+
+results <- cbind(coef(lm.fit.mathk.star3), lm.fit.mathk.star3.se)
+colnames(results) <- c("Coefficient", "SE")
+kable(signif(results, 3), caption = "Linear model of mathk against star3")
+```
+
+**Q1 e)** Similarly, most of the students who were in small classrooms in third grade were the ones who received the random treatment to be in small classrooms from kindergarten. Hence, there is a high correlation between `star3` and `stark`, and since `stark` is a good predictor a scores in kindergarten, `star3` will also act is a good predictor the same scores.
+
+**Q1 f)** No we should not control for `star3` in estimating the causal effect of `stark` on scores in kindergarten.  
+Since there an implicit timeline from kindergarten to third grade, we can assume the class type in third-grade `star3` should not have causal effects on the past, in kindergarten.
+
+**Q1 g)** Yes we should control for `stark` in estimating the causal effect of `star3` on scores in third grade.  
+Since `stark` is in the past and affects `star3`, it could also affect scores in third grade so we would want to control for this counfounding source to measure just the effect of `star3`.
+
+\newpage
+
+# Question 2
+
+```{r}
+ate.star <- function(year, resp) {
+    staryr <- paste("star", year, sep = "")
+    respyr <- paste(resp, year, sep = "")
+
+    return(function(new.data) {
+        if (year == "k") {
+            f <- formula(paste(respyr, "~", staryr))
+        }
+        else {
+            if (year == "1") {
+                prevyr <- "k"
+            }
+            else {
+                prevyr <- as.character(as.numeric(year) - 1)
+            }
+            starprevyr <- paste("star", prevyr, sep = "")
+            f <- formula(paste(respyr, "~", staryr, "+", starprevyr))
+        }
+        fit.lm <- lm(f, data = new.data)
+        df.small <- data.frame(new.data)
+        df.small[, staryr] <- "small"
+        df.reg <- data.frame(new.data)
+        df.reg[, staryr] <- "regular"
+
+        return(mean(predict(fit.lm, newdata = df.small) -
+                    predict(fit.lm, newdata = df.reg),
+                    na.rm = TRUE))
+    })
+}
+```
+
+```{r cache = TRUE}
+results.math <- matrix(nrow = 4, ncol = 2)
+results.read <- matrix(nrow = 4, ncol = 2)
+years <- c("k", "1", "2", "3")
+B <- 300
+
+for (i in 1:4) {
+    yr <- years[i]
+    results.math[i, ] <- c(ate.star(yr, "math")(STAR),
+                      bootstrap.se(statistic = ate.star(yr, "math"),
+                                   simulator = resample.cases,
+                                   B = B))
+}
+rownames(results.math) <- years
+colnames(results.math) <- c("ATE", "SE")
+
+for (i in 1:4) {
+    yr <- years[i]
+    results.read[i, ] <- c(ate.star(yr, "read")(STAR),
+                      bootstrap.se(statistic = ate.star(yr, "read"),
+                                   simulator = resample.cases,
+                                   B = B))
+}
+rownames(results.read) <- years
+colnames(results.read) <- c("ATE", "SE")
+```
+```{r}
+kable(signif(results.math, 3),
+      caption = "Math Average Treatment Effect (ATE) of small vs regular")
+kable(signif(results.read, 3),
+      caption = "Reading Average Treatment Effect (ATE) of small vs regular")
+```
+
+The average treatment effect for a particular `starj`, `j = k, 1, 2, 3`, is found by first fitting a linear model with `mathj` or `readj`, as well as the corresponding class type from the previous year as a means of control. The exception is for `j = k`, where we do not control for anything else other than `mathk` or `readk`. By controlling with the previous year's class type, we block off backdoor paths that go through them.  
+
+Then we apply the treatment of `small` or `regular` on `starj` by directly modifying the data, creating two data sets. We take the model's predictions on both data sets and take the mean of the difference as the Average Treatment Effect (ATE). This works because directly modifying `starj` is akin to experimentally controlling the treatment we are doing to (do($X = x$)). The predictions on these modified datasets would then approximate $\E{Y \mid do(X = small)}$ and $\E{Y \mid do(X = regular)}$ respectively, which can be used to approximate the ATE.
+
+The standard errors are found through bootstrapping with case resampling, using the same procedure on simulated data instead to create simulated ATEs which we can find an estimate of the standard error through.
+
+\newpage
+
+# Question 3
+
+**Q3 a)**
+
+```{r}
+STAR.eth <- subset(STAR, ethnicity %in% c("cauc", "afam", "asian"))
+```
+
+```{r}
+ate.star.eth <- function(year, resp, eth) {
+    staryr <- paste("star", year, sep = "")
+    respyr <- paste(resp, year, sep = "")
+
+    return(function(new.data) {
+        if (year == "k") {
+            f <- formula(paste(respyr, "~", staryr, "*", "factor(ethnicity)"))
+        }
+        else {
+            if (year == "1") {
+                prevyr <- "k"
+            }
+            else {
+                prevyr <- as.character(as.numeric(year) - 1)
+            }
+            starprevyr <- paste("star", prevyr, sep = "")
+            f <- formula(paste(respyr, "~", staryr, "*", "factor(ethnicity)", "+", starprevyr))
+        }
+
+        fit.lm <- lm(f, data = new.data)
+
+        df.small <- data.frame(new.data)
+        df.small[, staryr] <- "small"
+        df.small$ethnicity <- eth
+
+        df.reg <- data.frame(new.data)
+        df.reg[, staryr] <- "regular"
+        df.reg$ethnicity <- eth
+
+        return(mean(predict(fit.lm, newdata = df.small) -
+                    predict(fit.lm, newdata = df.reg),
+                    na.rm = TRUE))
+    })
+}
+```
+
+```{r cache = TRUE, warning = FALSE}
+results.math <- matrix(nrow = 3, ncol = 2)
+results.read <- matrix(nrow = 3, ncol = 2)
+eths <- c("cauc", "afam", "asian")
+B <- 300
+
+resample.cases.eth <- function() {
+    resample.data.frame(STAR.eth)
+}
+
+for (i in 1:3) {
+    eth <- eths[i]
+    results.math[i, ] <- c(ate.star.eth("k", "math", eth)(STAR.eth),
+                      bootstrap.se(statistic = ate.star.eth("k", "math", eth),
+                                   simulator = resample.cases.eth,
+                                   B = B))
+}
+rownames(results.math) <- eths
+colnames(results.math) <- c("ATE", "SE")
+
+for (i in 1:3) {
+    eth <- eths[i]
+    results.read[i, ] <- c(ate.star.eth("k", "read", eth)(STAR.eth),
+                      bootstrap.se(statistic = ate.star.eth("k", "read", eth),
+                                   simulator = resample.cases.eth,
+                                   B = B))
+}
+rownames(results.read) <- eths
+colnames(results.read) <- c("ATE", "SE")
+```
+```{r}
+kable(signif(results.math, 3),
+      caption = "Math Average Treatment Effect (ATE) of small vs regular")
+kable(signif(results.read, 3),
+      caption = "Reading Average Treatment Effect (ATE) of small vs regular")
+```
+
+**Q3 b)** Since we want to know if the ATE is different for different levels of ethnicity, the using a model that uses the interaction between the class type and ethnicity makes more sense than one that assumes the effects of these two covariates are additive. Assuming they are additive is a strong assumption that decouples the the effect of race in a particular class type from the test score.
+\newpage
+
+# Question 4
+
+**Q4 a)**
+
+```{r}
+results.math <- matrix(nrow = 4, ncol = 4)
+lunches <- c("non-free mean", "non-free SE", "free mean", "non-free SE")
+rownames(results.math) <- years
+colnames(results.math) <- lunches
+
+df.nfree <- subset(STAR, lunchk == "non-free")
+df.free <- subset(STAR, lunchk == "free")
+
+meanna <- function(x) { mean(x, na.rm = TRUE) }
+sena <- function(x) {
+    x.clean <- na.omit(x)
+    sd(x.clean) / sqrt(length(x.clean))
+}
+
+results.math[1, ] <-
+    c(meanna(df.nfree$mathk), sena(df.nfree$mathk),
+      meanna(df.free$mathk), sena(df.free$mathk))
+results.math[2, ] <-
+    c(meanna(df.nfree$math1), sena(df.nfree$math1),
+      meanna(df.free$math1), sena(df.free$math1))
+results.math[3, ] <-
+    c(meanna(df.nfree$math2), sena(df.nfree$math2),
+      meanna(df.free$math2), sena(df.free$math2))
+results.math[4, ] <-
+    c(meanna(df.nfree$math3), sena(df.nfree$math3),
+      meanna(df.free$math3), sena(df.free$math3))
+
+results.read <- matrix(nrow = 4, ncol = 4)
+rownames(results.read) <- years
+colnames(results.read) <- lunches
+
+results.read[1, ] <-
+    c(meanna(df.nfree$readk), sena(df.nfree$readk),
+      meanna(df.free$readk), sena(df.free$readk))
+results.read[2, ] <-
+    c(meanna(df.nfree$read1), sena(df.nfree$read1),
+      meanna(df.free$read1), sena(df.free$read1))
+results.read[3, ] <-
+    c(meanna(df.nfree$read2), sena(df.nfree$read2),
+      meanna(df.free$read2), sena(df.free$read2))
+results.read[4, ] <-
+    c(meanna(df.nfree$read3), sena(df.nfree$read3),
+      meanna(df.free$read3), sena(df.free$read3))
+
+kable(signif(results.math, 5),
+      caption = "Math")
+kable(signif(results.read, 5),
+      caption = "Reading")
+```
+
+**Q4 b)** It does not make sense to control for `stark` to estimate the effect of `lunchk` on test scores.  
+It is highly unlikely that being in a particular class type has a causal effect on the poverty level of the individual's family, as that is more of an inherent property of the individual. Thus, there is unlikely to be backdoor paths for `lunchk` to test scores through `stark`.
+
+**Q4 c)**
+
+- gender: Not controlled for, assuming gender does not affect qualification for free lunch.
+- ethnicity: Controlled for, assuming ethnicity affects poverty level.
+- schoolk: Not enough information for, school type could affect qualification for free lunch or poverty level could affect school type.
+- experiencek: Not controlled for, assuming teacher's experience has no effect on qualification for free lunch.
+- tethnicityk: Not controlled for, assuming teacher's ethnicity has no effect on qualification for free lunch.
+- systemk: Not enough information for, assuming school district could affect school type and has the same reasoning by extension.
+- schoolidk: Not controlled for, assuming school ID has no relation to anything.
+- lunch1: Not controlled for, assuming lunchk affects lunch1 which could also affect test scores, and hence is on a direct path.
+
+**Q4 d)** We should control for the kindergarten test scores if we assume they affect `lunchk` too, besides affecting the first grade test scores, i.e. they are on backdoor paths.  
+We should not control for kindergarten test scores if we assume that `lunchk` affects them, and then they affect first grade test sores, i.e. they are on direct paths from `lunchk` to first grade test scores.
