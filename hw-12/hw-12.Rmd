@@ -1,0 +1,99 @@
+---
+title: "36-402 Homework 12"
+author:
+- Eu Jing Chua
+- eujingc
+date: "May 19, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+    - \usepackage{txfonts}
+    - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+library(dagitty)
+library(ggdag)
+library(pcalg)
+library(mgcv)
+```
+
+```{r}
+data <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/hw/04/gmp-2006.csv")
+```
+
+
+# Question 1
+
+**Q1 a)**
+
+```{r}
+dagified <- dagify(pcgmp ~ pop,
+                   finance ~ pop,
+                   prof.tech ~ pop,
+                   ict ~ pop,
+                   management ~ pop)
+ggdag(dagified, layout = "circle")
+```
+
+However, multiple other graphs are possible as the theory says nothing about the relationships between per-capita output and the four industries, in which case any set of relationships would be compatible with the theory.
+
+**Q1 b)**
+
+`pcgmp` $\not \Perp$ `finance` as there is an open path through population.  
+`pcgmp` $\Perp$ `finance` $\mid$ `pop` as all paths are closed.  
+`pcgmp` $\Perp$ `finance` $\mid$ `pop`, `management` as all paths are closed.
+
+**Q1 c)**
+
+We can roughly test for the dependence between variables by assuming an additive mixture model using spline smoothing for each variable.
+
+```{r}
+am.fit.1 <- gam(pcgmp ~ s(finance), data = data)
+am.fit.2 <- gam(pcgmp ~ s(finance) + s(pop), data = data)
+am.fit.3 <- gam(pcgmp ~ s(finance) + s(pop) + s(management), data = data)
+```
+
+In the first model, we test for $`pcgmp` \not \Perp `finance`$, in which we only model `pcgmp` against `finance`. The partial response is as follows:  
+
+```{r fig.height = 4}
+plot(am.fit.1, pages = 1)
+```
+
+We can see a relationship exists between `pcgmp` and `finance`, where in general as `finance` increases, so does `pcgmp`. Thus, this seems to provide evidence that the dependence exists.
+
+In the second model, we test for $`pcgmp` \Perp `finance` \mid `pop`$, in which we model `pcgmp` against `finance`, controlling for `pop`. The partial responses are as follows:  
+
+```{r fig.height = 4}
+plot(am.fit.2, pages = 1)
+```
+
+However, the additive model shows that after controlling for `pop`, the partial response of `finance` still has a similar relationship as before, where higher values of `finance` are related to higher values of `pcgmp`. Thus, the data does not support this conditional independence.  
+
+In the third model, we test for $`pcgmp` \Perp `finance` \mid `pop`, `management`$, in which we model `pcgmp` against `finance`, controlling for `pop` and `management`. The partial responses are as follows:  
+
+```{r fig.height = 4}
+plot(am.fit.3, pages = 1)
+```
+
+Similar to above, we can see that the partial response of `finance` again shows an increasing relationship, even after controlling for both variables. However, once again the data does not support this conditional independence.
+
+
+
