@@ -33,6 +33,7 @@ library(dagitty)
 library(ggdag)
 library(pcalg)
 library(mgcv)
+library(Rgraphviz)
 ```
 
 ```{r}
@@ -45,12 +46,12 @@ data <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/hw/04/gmp-2006.csv")
 **Q1 a)**
 
 ```{r}
-dagified <- dagify(pcgmp ~ pop,
+dag.1 <- dagify(pcgmp ~ pop,
                    finance ~ pop,
                    prof.tech ~ pop,
                    ict ~ pop,
                    management ~ pop)
-ggdag(dagified, layout = "circle")
+ggdag(dag.1, layout = "circle")
 ```
 
 However, multiple other graphs are possible as the theory says nothing about the relationships between per-capita output and the four industries, in which case any set of relationships would be compatible with the theory.
@@ -95,5 +96,238 @@ plot(am.fit.3, pages = 1)
 
 Similar to above, we can see that the partial response of `finance` again shows an increasing relationship, even after controlling for both variables. However, once again the data does not support this conditional independence.
 
+**Q1 d)** Assuming the DAG above is right and that the relations can be modeled with an additive model with spline smoothing, we can first fit an additive model for `pcgmp` against `pop` with the whole dataset, using spline smoothing. With this model, we then predict the `pcgmp` where we fix `pop` to be the population size of Pittsburgh, and then another prediction where we fix `pop` to be double the previous size. The difference in these two predictions would then be the estimated average effect, assuming the DAG was right.
 
+\newpage
 
+# Question 2
+
+**Q2 a)**
+
+```{r}
+dag.2 <- dagify(pcgmp ~ finance + prof.tech + ict + management,
+                   finance ~ pop,
+                   prof.tech ~ pop,
+                   ict ~ pop,
+                   management ~ pop)
+ggdag(dag.2, layout = "circle")
+```
+
+**Q2 b)**
+
+Under this DAG, `pop` $\not \Perp$ `pcgmp`.  
+However, `pop` $\Perp$ `pcgmp` $\mid$ `ict, management, prof.tech, finance`.
+
+**Q2 c)** Under this DAG, `ict` $\Perp$ `finance` $\mid$ `pop`. This also holds true for the previous DAG.
+
+**Q2 d)** Under this DAG, `pop` $\Perp$ `pcgmp` $\mid$ `ict, management, prof.tech, finance`. However, this is not true for the previous DAG.
+
+**Q2 e)**
+
+```{r fig.height = 5}
+am.fit.4 <- gam(pcgmp ~ s(pop) + s(ict) + s(management) + s(prof.tech) + s(finance), data = data)
+plot(am.fit.4, pages = 1)
+```
+
+Assuming an additive model with spline smoothing once again, we can see that `pop` does not seem to be independent of `pcgmp` given the rest of 4 variables as its partial response is highly non-horizontal. However, according to this theory and the associated DAG, these variables should be conditionally independent.
+
+**Q2 f)** This data set may not have all the variables to account for all sources of confounding when it comes to testing statistical independences. For example, the proportions from the four industries do not all add up to 1.0, so there are more industries that contribute to `pcgmp`, as well as many other possible geographical features.
+
+**Q2 g)** Assuming the DAG above is right and that the relations can be modeled with an additive model with spline smoothing, we can first fit an additive model for `pcgmp` against `pop` and control for `ict, management, prof.tech, finance` with the whole dataset, using spline smoothing. With this model, we then predict the `pcgmp` where we fix `pop` to be the population size of Pittsburgh for the dataset, and then similarly another prediction where we fix `pop` to be double the previous size. The difference in these two predictions would then be the estimated average effect, assuming the DAG was right.
+
+\newpage
+
+# Question 3
+
+**Q3 a)**
+
+```{r}
+dag.3 <- dagify(pcgmp ~ finance + prof.tech + ict + management,
+                pop ~ pcgmp)
+ggdag(dag.3)
+```
+
+**Q3 b)** This is not possible as in DAG 1, `pop` is the parent of every variable and those are the only relations. In order to close any path, we would have to condition on `pop`, the middle of any fork. However in this DAG, all 4 industry proportions are the parents of `pcgmp` and so all paths between industries are colliders. Since `pop` is a descendent of `pcgmp`, conditioning on pop makes all the colliders open paths. Thus there is no set of variables that can close all paths in both DAGs.
+
+**Q3 c)** `ict` $\Perp$ `finance` $\mid$ `pop` in both DAGs.
+
+**Q3 d)** `pop` $\Perp$ `finance` $\mid$ `pcgmp` in this DAG, but not the previous two.
+
+**Q3 e)** We fit an additive model with spline smoothing of `pop` against `finance`, controlling for `pcgmp`.
+
+```{r}
+am.fit.5 <- gam(pop ~ s(finance) + s(pcgmp), data = data)
+plot(am.fit.5, pages = 1)
+```
+
+In the partial response of `finance`, we can see that there seems to be a relationship between `pop` and `finance`, where if they were independent controlling for `pcgmp` we would have seen roughly a horizontal response. Thus, the data does not seem to support the conditional independence.
+
+**Q3 f)** In this model, increasing population would not affect `pcgmp` at all, as when we intervene and increase `pop` the new DAG we get is one with all incoming edges to `pop` removed. Thus, `pop` there would be no path from `pcgmp` and thus they would be independent.
+
+\newpage
+
+# Question 4
+
+**Q4 a)**
+
+```{r}
+suffStat <- list(C = cor(data[, 2:7], use = "complete.obs"), n = nrow(data))
+pc.fit <- pc(suffStat, indepTest = gaussCItest, p = 6, alpha = 0.05)
+plot(pc.fit, labels=colnames(data[, 2:7]), main = "Inferred DAG")
+```
+
+**Q4 b)** In the inferred DAG, we can see that 3 of the industry proportions, namely `ict`, `finance` and `management` are exogeneous. However, we see that professional tech does not affect anything, but is in fact affected by `ict`, `finance` and `pop`.  
+We see that `pcgmp` is affected by `management` and `ict` only, and then goes on to affect `pop`.  
+Finally, `pop` is only affected by `finance`, `pcgmp` and `management`.
+
+**Q4 c)**
+
+```{r}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+resample.data.frame <- function(data) {
+    sample.rows <- resample(1:nrow(data))
+    return(data[sample.rows, ])
+}
+```
+
+```{r}
+bootstrap.se <- function(statistic, simulator, B) {
+    stats <- rboot(statistic = statistic, simulator = simulator, B = B)
+    return(apply(stats, 1, sd))
+}
+resample.cases <- function() {
+    return(resample.data.frame(data))
+}
+est.pcgmp.coef <- function(new.data) {
+    return(coef(lm(pcgmp ~ ict + management, data = new.data)))
+}
+est.pop.coef <- function(new.data) {
+    return(coef(lm(pop ~ finance + pcgmp + management, data = new.data)))
+}
+est.prof.tech.coef <- function(new.data) {
+    return(coef(lm(prof.tech ~ ict + finance + pop, data = new.data)))
+}
+get.var.result <- function(statistic) {
+    results <- cbind(statistic(data), bootstrap.se(statistic, resample.cases, B = 10))
+    colnames(results) <- c("Coefficient", "SE")
+    return(results)
+}
+
+pcgmp.results <- get.var.result(est.pcgmp.coef)
+pop.results <- get.var.result(est.pop.coef)
+prof.tech.results <- get.var.result(est.prof.tech.coef)
+```
+
+```{r}
+kable(signif(pcgmp.results, 5), caption = "`pcgmp` against parents")
+kable(signif(pop.results, 5), caption = "`pop` against parents")
+kable(signif(prof.tech.results, 3), caption = "`prof.tech` against parents")
+```
+
+All of the coefficients of parent variables have positive signs, which indicate positive relationships under our linear model, where an increase in the parent variable corresponds to an increase in the variable itself too, controlling for all other parents.
+
+**Q4 d)** According to the current DAG, changing the population size would have no effect on `pcgmp` as by doing so we remove all incoming edges to `pop`, leaving no open paths from `pop` to `pcgmp`.  
+However, by increasing the share of `ict` by 10%, we predict this causes `pcgmp` to increase by approximately `r signif(0.1 * pcgmp.results[2, 1], 5)`, when controlling for `management`.
+
+**Q4 e)** The conditional independence test assumse that each variable's marginal distribution as well as pairwise distribution is Gaussian.
+
+**Q4 f)**
+
+```{r fig.height = 4}
+par(mfrow=c(2, 3))
+hist(data$ict, xlab = "ict", main = "Hist. of `ict`")
+hist(data$finance, xlab = "finance", main = "Hist. of `finance`")
+hist(data$prof.tech, xlab = "prof.tech", main = "Hist. of `prof.tech`")
+hist(data$management, xlab = "management", main = "Hist. of `management`")
+hist(data$pop, xlab = "pop", main = "Hist. of `pop`")
+hist(data$pcgmp, xlab = "pcgmp", main = "Hist. of `pcgmp`")
+```
+
+This assumption is not plausible as from the rough distribution plots above, we can see that most of the variables have skewed distributions that are not approximately normal.
+
+\newpage
+
+# Question 5
+
+**Q5 a)**
+
+```{r}
+trans.data <- data.frame(data)
+trans.data$pop <- log(data$pop)
+trans.data$pcgmp <- log(data$pcgmp)
+
+suffStat <- list(C = cor(trans.data[, 2:7], use = "complete.obs"), n = nrow(trans.data))
+pc.fit <- pc(suffStat, indepTest = gaussCItest, p = 6, alpha = 0.05)
+plot(pc.fit, labels=colnames(data[, 2:7]), main = "Inferred DAG")
+```
+
+**Q5 b)** In this new graph, `finance` is no longer exogeneous but rather is affected by `pop` and `pcgmp`. We also see that now `prof.tech` affects `pop`, which is reverse of the previous DAG. Also, `pcgmp` no longer directly affects `pop`.
+
+**Q5 c)** In the new DAG, when we change the population size, we still will observe no effect on `pcgmp` as this operation will result in no open paths again in the new DAG.
+
+```{r}
+pcgmp.new.fit <- lm(pcgmp ~ ict + management, data = trans.data)
+```
+
+When we increase `ict` by 10%, we now predict that this causes `log(pcgmp)` to increase by around `r signif(0.1 * coef(pcgmp.new.fit)[2], 3)`.
+
+**Q5 d)**
+
+```{r fig.height = 4}
+par(mfrow=c(2, 3))
+hist(trans.data$ict, xlab = "ict", main = "Hist. of `ict`")
+hist(trans.data$finance, xlab = "finance", main = "Hist. of `finance`")
+hist(trans.data$prof.tech, xlab = "prof.tech", main = "Hist. of `prof.tech`")
+hist(trans.data$management, xlab = "management", main = "Hist. of `management`")
+hist(trans.data$pop, xlab = "pop", main = "Hist. of `pop`")
+hist(trans.data$pcgmp, xlab = "pcgmp", main = "Hist. of `pcgmp`")
+```
+
+Afte this transformation, the distributions of `log(pop)` and `log(pcgmp)` are slightly less skewed, but other variables such as `ict`, `prof.tech` and `management` are still very skewed and still do not satisfy the assumption well.
+
+# Question 6
+
+We still face the same problem identified in Q2 f), which is that there are probably missing variables from this dataset that have not been observed. This is a crucial assumption about the PC algorithm, which is that there are no hidden or latent variables in our data for the algorithm to work. This cannot really be checked, as the underlying Markov property we use can only test for conditional independence between observed variables. If there are unobserved variables, there is no way to use tests of conditional independence to infer dependence on some hidden variable.
