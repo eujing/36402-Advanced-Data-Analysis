@@ -1,0 +1,67 @@
+---
+title: "36-402 Final Exam"
+author:
+- Eu Jing Chua
+- eujingc
+date: "May 02, 2019"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+library(knitr)
+library(pcalg)
+library(Rgraphviz)
+```
+
+```{r}
+strikes <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/exams/2/strikes.csv")
+strikes.missing <- data.frame(strikes)
+strikes.missing$density <- NULL
+strikes.missing$density.missing <- as.numeric(is.na(strikes$density))
+```
+
+```{r}
+strikes.trans <- data.frame(strikes)
+# strikes.trans <- subset(strikes, year >= 1960)
+# strikes.trans$strike.volume <- log(strikes$strike.volume + 1)
+# strikes.trans$inflation <- sqrt(strikes$inflation)
+# strikes.trans$unemployment <- sqrt(strikes$unemployment)
+par(mfrow=c(2, 3))
+vars <- colnames(strikes.trans[3:8])
+for (v in vars) {
+    hist(strikes.trans[, v], main = v)
+}
+for (v in vars) {
+    qqnorm(strikes.trans[, v], main = v)
+    qqline(strikes.trans[, v])
+}
+```
+
+
+```{r}
+suffStat <- list(C=cor(strikes.trans[3:8], use="pairwise.complete.obs"),
+                 n=nrow(strikes.trans))
+pc.fit <- pc(suffStat, indepTest = gaussCItest, p = 6, alpha = 0.05)
+plot(pc.fit, labels = colnames(strikes.trans[3:8]), main = "Inferred DAG for strikes")
+```
+
+
+
