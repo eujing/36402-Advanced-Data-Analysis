@@ -11,7 +11,7 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
 \newcommand{\est}[1]{\hat{#1}}
@@ -29,39 +29,395 @@ knitr::opts_chunk$set(echo = TRUE)
 library(knitr)
 library(pcalg)
 library(Rgraphviz)
+library(np)
+options(np.messages = FALSE)
 ```
 
 ```{r}
 strikes <- read.csv("http://www.stat.cmu.edu/~cshalizi/uADA/19/exams/2/strikes.csv")
-strikes.missing <- data.frame(strikes)
-strikes.missing$density <- NULL
-strikes.missing$density.missing <- as.numeric(is.na(strikes$density))
 ```
 
+# Question 1
+
+The data set we are dealing with contains observations of factors deemed relevant to the frequency of strikes by organized workers. We are interested in knowing the causal effects of strikes, and thus use graphical modelling to find the various dependencies of each variable. We assume there are no hidden or latent variables in the data, and use the PC algorithm to infer the possible Markov equivalent Directed Acyclic Graphs (DAGs) that represent these dependencies. In the algorithm, we assume that all variables are normally distributed and linearly related to their parents, utilizing the `gaussCItest` at 0.95 significance level for independence testing.
+
+## Summary of Data
+
 ```{r}
-strikes.trans <- data.frame(strikes)
-# strikes.trans <- subset(strikes, year >= 1960)
-# strikes.trans$strike.volume <- log(strikes$strike.volume + 1)
-# strikes.trans$inflation <- sqrt(strikes$inflation)
-# strikes.trans$unemployment <- sqrt(strikes$unemployment)
-par(mfrow=c(2, 3))
-vars <- colnames(strikes.trans[3:8])
-for (v in vars) {
-    hist(strikes.trans[, v], main = v)
-}
-for (v in vars) {
-    qqnorm(strikes.trans[, v], main = v)
-    qqline(strikes.trans[, v])
-}
+summary(strikes[3:8])
 ```
 
+Looking at the above summary of the data, only for the variable `density` do we have missing data which we know is not missing at random but was due to the availability of the data only from 1960 onwards. As such, we chose not to omit all observations with missing `density`. However, since we are calculating the correlation matrix of our observations across multiple variables for `gaussCItest`, we can still utilize partial deletion to calculate as much of the correlation matrix as we can for pairwise complete observations.
 
-```{r}
-suffStat <- list(C=cor(strikes.trans[3:8], use="pairwise.complete.obs"),
-                 n=nrow(strikes.trans))
+```{r fig.height = 4}
+suffStat <- list(C = cor(strikes[3:8], use = "pairwise.complete.obs"),
+                 n = nrow(strikes))
 pc.fit <- pc(suffStat, indepTest = gaussCItest, p = 6, alpha = 0.05)
-plot(pc.fit, labels = colnames(strikes.trans[3:8]), main = "Inferred DAG for strikes")
+plot(pc.fit, labels = colnames(strikes[3:8]), main = "Inferred DAG for strikes")
 ```
 
+## Variables and their Relationships
 
+\begin{table}[!h]
+\caption{DAG 1 strike.volume $\rightarrow$ unemployment}
+\begin{tabular}{l|p{70mm}|p{70mm}}
+\hline
+                & Parents                                        & Children                                                                \\ \hline
+strike.volume   & None                                           & inflation, centralization \& unemployment \\ \hline
+unemployment    & strike.volume                                  & inflation \& centralization \\ \hline
+inflation       & strike.volume \& unemployment                  & density                                                                 \\ \hline
+left.parliament & None                                           & centralization                                                          \\ \hline
+centralization  & strike.volume, unemployment \& left.parliament & density                                                                 \\ \hline
+density         & inflation \& centralization                    & None                                                                    \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{DAG 2 strike.volume $\leftarrow$ unemployment}
+\begin{tabular}{l|p{70mm}|p{70mm}}
+\hline
+                & Parents                                        & Children                                                                \\ \hline
+strike.volume   & unemployment                                   & inflation \& centralization \\ \hline
+unemployment    & None                                           & inflation, centralization \& strike.volume \\ \hline
+inflation       & strike.volume \& unemployment                  & density                                                                 \\ \hline
+left.parliament & None                                           & centralization                                                          \\ \hline
+centralization  & strike.volume, unemployment \& left.parliament & density                                                                 \\ \hline
+density         & inflation \& centralization                    & None                                                                    \\ \hline
+\end{tabular}
+\end{table}
+
+As we can see from the inferred DAG, there are two possible graphs as the edge between `strike.volume` and `unemployment` is undirected. Thus, we could possibly have a DAG where `strike.volume` $\rightarrow$ `unemployment`, or `strike.volume` $\leftarrow$ `unemployment.` Every other relationship remains the same in both DAGs. Since both DAGs are possible given our observations, we take both DAGs into consideration in our analysis.
+
+\newpage
+
+# Question 2
+
+```{r}
+# Taken from page 136 of textbook
+rboot <- function(statistic, simulator, B) {
+    tboots <- replicate(B, statistic(simulator()))
+    if (is.null(dim(tboots))) {
+        tboots <- array(tboots, dim = c(1, B))
+    }
+    return(tboots)
+}
+
+bootstrap <- function(tboots, summarizer, ...) {
+    summaries <- apply(tboots, 1, summarizer, ...)
+    return(t(summaries))
+}
+
+# From page 138 of textbook
+equitails <- function(x, alpha) {
+    lower <- quantile(x, alpha/2)
+    upper <- quantile(x, 1 - alpha/2)
+    return(c(lower, upper))
+}
+bootstrap.ci <- function(statistic = NULL, simulator = NULL, tboots = NULL,
+    B = if (!is.null(tboots)) {
+        ncol(tboots)
+    }, t.hat, level) {
+
+    if (is.null(tboots)) {
+        stopifnot(!is.null(statistic))
+        stopifnot(!is.null(simulator))
+        stopifnot(!is.null(B))
+        tboots <- rboot(statistic, simulator, B)
+    }
+
+    alpha <- 1 - level
+    intervals <- bootstrap(tboots, summarizer = equitails, alpha = alpha)
+    upper <- t.hat + (t.hat - intervals[, 1])
+    lower <- t.hat + (t.hat - intervals[, 2])
+    CIs <- cbind(lower = lower, upper = upper)
+    return(CIs)
+}
+
+# From page 144 of textbook
+resample <- function(x) {
+    sample(x, size = length(x), replace = TRUE)
+}
+```
+
+```{r cache=TRUE}
+# List of possible parent-children dependencies in the DAGs
+formulas <- c(
+    strike.volume ~ unemployment,
+    unemployment ~ strike.volume,
+    inflation ~ strike.volume + unemployment,
+    centralization ~ strike.volume + unemployment + left.parliament,
+    density ~ inflation + centralization
+)
+variables <- c(
+    "strike.volume",
+    "unemployment",
+    "inflation",
+    "centralization",
+    "density"
+)
+names(formulas) <- variables
+B <- 300
+
+# Returns a new data frame with the response variable replaced with simulations via residual resampling
+# Inputs:
+#   f: formula for the model
+#   data: original data frame
+# Output:
+#   function that can be called repeatedly to produce a new data frame from simulation
+resample.residuals <- function(f, data) {
+    new.data <- data.frame(data)
+    fit.lm <- lm(f, data = new.data)
+    response <- all.vars(f)[1]
+    valid.rows <- !is.na(new.data[, response])
+
+    return(function() {
+        new.data[valid.rows, response] <- predict(fit.lm) + resample(resid(fit.lm))
+        return(new.data)
+    })
+}
+
+# Produces a list where each item is the linear regression coefs with bootstrapped CIs for each linear model
+coef.ests <- lapply(formulas, function(f) {
+    # Function for finding coefs for formula f from given data
+    est.f <- function(new.data) {
+        fit.lm <- lm(f, data = new.data)
+        return(coef(fit.lm))
+    }
+
+    # Actual estimates
+    coefs <- est.f(strikes)
+
+    # A function for producing simulations
+    sim <- resample.residuals(f, strikes)
+
+    # The bootstrapped CIs
+    cis <- bootstrap.ci(statistic = est.f, simulator = sim,
+                        B = B, level = 0.95, t.hat = coefs)
+
+    results <- cbind(coefs, cis)
+    colnames(results) <- c("Coefficient", "Lower", "Upper")
+    return(results)
+})
+
+# Produces a matrix where each row is the linear regression noise SD with bootstrapped CIs for each linear model
+sd.ests <- sapply(formulas, function(f) {
+    # Function for finding noise SD for formula f from given data
+    est.f <- function(new.data) {
+        fit.lm <- lm(f, data = new.data)
+        return(sd(residuals(fit.lm)))
+    }
+
+    # Actual noise SD estimates
+    sd.est <- est.f(strikes)
+
+    # A function for producing simulations
+    sim <- resample.residuals(f, strikes)
+
+    # The bootstrapped CIs
+    cis <- bootstrap.ci(statistic = est.f, simulator = sim,
+                        B = B, level = 0.95, t.hat = sd.est)
+
+    results <- cbind(sd.est, cis)
+    return(results)
+})
+sd.ests <- t(sd.ests)
+colnames(sd.ests) <- c("Noise SD", "Lower", "Upper")
+```
+
+Since we assumed linear models for all dependencies, we can estimate the coefficients of each linear model as well as the standard deviation of the regression noise under these models. Also, boostrapping with residual resampling is used to find 95% confidence intervals for each estimate of the coefficient and standard deviation:
+
+Assuming the DAG where `strike.volume` $\leftarrow$ `unemployment`,
+
+```{r}
+kable(signif(coef.ests$strike.volume, 4), caption = "strike.volume against parents")
+```
+
+Assuming the DAG where `strike.volume` $\rightarrow$ `unemployment`,
+
+```{r}
+kable(signif(coef.ests$unemployment, 4), caption = "unemployment against parents")
+```
+
+These other estimates hold for both graphs,
+
+```{r}
+kable(signif(coef.ests$inflation, 4), caption = "inflation against parents")
+kable(signif(coef.ests$centralization, 4), caption = "centralization against parents")
+kable(signif(coef.ests$density, 4), caption = "density against parents")
+kable(signif(sd.ests, 4), caption = "Standard Deviations of regression noise for each endogeneous variable")
+```
+
+\newpage
+
+# Question 3
+
+We are now interested in estimating the causal effect of `strike.volume` on density when we increase `strike.volume` by one standard deviation from its mean. Assuming the linear models hold, we want to eliminate all backdoor paths from `strike.volume` to `density` in order to remove confounding sources. Since there are two possible DAGs, we consider both cases:
+
+**Q3 a)**
+
+Assuming the DAG where `strike.volume` $\rightarrow$ `unemployment`, then there are no backdoor paths from `strike.volume` to` density`, hence we can use a linear model of `density` against `strike.volume` to estimate the effect:
+
+```{r}
+mean.s.vol <- mean(strikes$strike.volume)
+sd.s.vol <- sd(strikes$strike.volume)
+df.mean <- data.frame(strikes)
+df.mean$strike.volume <- mean.s.vol
+df.inc <- data.frame(strikes)
+df.inc$strike.volume <- mean.s.vol + sd.s.vol
+
+lm.fit.1 <- lm(density ~ strike.volume, data = strikes)
+effect.1 <- predict(lm.fit.1, newdata = df.inc) - predict(lm.fit.1, newdata = df.mean)
+```
+
+In this case, we have a predicted expected change of `r signif(mean(effect.1), 3)` in the `density.`
+
+Assuming the DAG where `strike.volume` $\leftarrow$ `unemployment`, then there are backdoor paths through unemployment from `strike.volume` to `density.` We can condition on `unemployment` to block all these backdoor paths, and hence construct a linear model of `density` against `strike.volume`, controlling for `unemployment.`
+
+```{r}
+lm.fit.2 <- lm(density ~ strike.volume + unemployment, data = strikes)
+effect.2 <- predict(lm.fit.2, newdata = df.inc) - predict(lm.fit.2, newdata = df.mean)
+```
+
+In this model, we have a predicted expected change of `r signif(mean(effect.2), 3)` in the `density`, controlling for `unemployment.`
+
+**Q3 b)**
+
+We can compare these estimated effects with the naive case where we linearly regress `density` against all other variables. In this case, we still estimate the effect on `density` when we increase `strike.volume` by one standard deviation from its mean, keeping all other variables at their mean.
+
+```{r}
+lm.fit.3 <- lm(density ~ strike.volume + unemployment + inflation + left.parliament + centralization, data = strikes)
+```
+
+The expected increase is $`r signif(coef(lm.fit.3)[2] * sd.s.vol, 3)`$ when `strike.volume` increases by one standard deviation and everything else remains at the mean. This is vastly different from the previous two estimates, which predicts a decrease in `density` as `strike.volume` increases, while this estimate predicts an increase in `density.`
+
+\newpage
+
+# Question 4
+
+Given the possible causal inferences above, one important assumption made was that relationships were linear between endogeneous variables and their parents. One should verify the goodness-of-fit of our linear models before considering the implications of the causal inferences done above.
+
+**Q4 a)** We could test each linearity assumption by doing a significance test for the difference in in-sample MSE between the linear regression and a non-parametric regression. In this case, we can use a kernel regression with bandwidths chosen with cross-validation. Such a non-parametric model will allow us to check for all kinds of mis-specifications in the linear model as it will converge to a significantly lower MSE. However, if the linear model was right, then it should also have a similar low MSE.  
+
+Thus we can test this by having $H_0:$ Linear model is right vs. $H_a:$ Linear model is mis-specified, and then simulating data under the $H_0$. Specifically, we can add on the resampled residuals to the predictions of the linear model. We can then fit both linear models and kernel regressions to the data from the null hypothesis, then calculate the difference in MSE between the two models. This gives us a distribution for the difference in MSE under the null hypothesis.
+
+Finally, we can take our observed difference in MSE from the two models fit to the actual data, and calculate a p-value for this observed difference under the above distribution.
+
+**Q4 b)** Below are the plots of the simulated distributions of the MSE difference in models, assuming the null hypothesis, for each possible endogeneous variable against its parents. The red vertical line indicates our respective observed MSE differences. Table 9 summarizes these plots into their corresponding p-values for each test.
+
+```{r}
+# Function for generating simulated data under the null hypothesis of linearity
+# Uses residual resampling for simulation
+# Input:
+#   lm.formula: Formula for the linear model in the null hypothesis
+#   data: Original data to generate simulations from
+# Output:
+#   new.data: A new data frame with the response filled up with simulated data
+lm.sim <- function(lm.formula, data) {
+    new.data <- data.frame(data)
+    response <- all.vars(lm.formula)[1]
+    lm.fit <- lm(lm.formula, new.data)
+    valid.rows <- !is.na(new.data[, response])
+    new.data[valid.rows, response] <- predict(lm.fit) + resample(resid(lm.fit))
+    return(new.data)
+}
+
+# Finds in-sample MSE of a regression model
+insamp.mse <- function (model) {
+    return(mean(resid(model) ^ 2))
+}
+
+
+# Finds the difference in in-sample MSE between a linear and kernel regression
+# Input:
+#   f: Formula as a string (npreg needs this to avoid environment problems)
+#   strikes.df: data to calculate the in-sample MSE from
+# Output:
+#   The in-sample MSE difference for this particular formula with given data
+mse.difference <- function(f, strikes.df) {
+    bws <- npregbw(as.formula(f), data = strikes.df)
+    npreg.fit <- npreg(bws)
+    lm.fit <- lm(as.formula(f), data = strikes.df)
+    return(insamp.mse(lm.fit) - insamp.mse(npreg.fit))
+}
+
+```
+
+```{r cache=TRUE, autodep=TRUE}
+obs.mse.diff <- sapply(formulas, function(f) {
+    mse.difference(format(f), strikes)
+})
+
+null.mse.diff <- sapply(formulas, function(f) {
+    ff <- format(f)
+    return(replicate(300, mse.difference(ff, lm.sim(f, strikes))))
+})
+```
+
+```{r fig.height = 3.5}
+par(mfrow = c(2, 3))
+for (i in 1:5) {
+    dist <- null.mse.diff[, i]
+    obs <- obs.mse.diff[i]
+    hist(dist, xlim = c(min(dist, obs), max(dist, obs)),
+         main = paste("MSE diff. for", variables[i]))
+    abline(v = obs, col = "red")
+}
+```
+
+```{r}
+# Extend the observed vector into a matrix so we can compare across rows easily
+broadcasted <- matrix(obs.mse.diff, nrow = 300, ncol = 5, byrow = TRUE)
+p.values <- colMeans(null.mse.diff >= broadcasted)
+names(p.values) <- variables
+kable(signif(p.values, 3), caption = "Estimated p-values for goodness-of-fit of linear models")
+```
+
+**Q4 c)**
+
+Assuming a 0.95 significance level test, we can see that for all possible parent-children relationships, the individual p-values are less than 0.05.  
+
+However if we wanted an overall conclusion for the linearity at 0.95 significance, then we can apply a conservative Bonferroni Correction for multiple testing, using $\alpha = \frac{0.05}{4} = 0.0125$ for each test since we have 4 tests for each DAG.  
+
+Even under this conservative correction, we see that the minimum p-value is approximately 0 (This p-value can either be from the relationship of `centralization` with its parents, or `density` and its parents. Regardless, both relationships are found in both possible DAGs, so the conclusion should hold for both DAGs). Since the minimum p-value for the test of non-linearity for all relationships is less than the corrected $\alpha$ in both DAGs, we conclude that there is sufficient evidence that we reject the overall null hypothesis at 0.95 significance, and that overall the linear model is mis-specified for endogeneous variables and their parents.
+
+\newpage
+
+# Question 5
+
+We must evaluate some of the assumptions we made when inferring the DAGs based on the PC algorithm. Since the data was collected by a specialist in the field, lets assume that all relevant variables are observed such that there are no hidden or latent variables. Given so, we further assumed that all variables are Gaussian and are linearly related. First of all, the distribution of the observed data, followed by their normal Q-Q plots are as follows:
+
+```{r fig.height = 3.5}
+par(mfrow = c(2, 3))
+vars <- colnames(strikes[3:8])
+for (v in vars) {
+    hist(strikes[, v], main = v, xlab = v)
+}
+for (v in vars) {
+    qqnorm(strikes[, v], main = v)
+    qqline(strikes[, v])
+}
+```
+
+From the histograms and normal Q-Q plots, we can see that hardly any of the variables are roughly normally distributed with the exception of `left.parliament.` As for goodness-of-fit for our linear models, we can see from Q4 that in general this assumption is violated as there exist relationships, such as those of `density` and `centralization` against their parents, that are significantly non-linear in either of the inferred DAGs. Although the Bonferroni Correction is conservative, we are conducting a relatively few number of multiple tests - four, so do we not lose too much power. Even with the adjusted $\alpha$, we find that we still have sufficient evidence that not all of the relationships are linear.  
+
+Looking at the variables themselves, several of them have bounded ranges, such as `unemployment` which is a percentage that logically only lies within $[0, 100]$, or `centralization` which is a measure that as stated only lies within $[0, 1]$. Linear models of such variables against their parents will fail to respect the bounds of these variables. Secondly, it is not known as a fact that these variables are all linearly related to their parents; there is no reason to believe so other than to simplify the statistical modelling.
+
+Hence, the base assumptions of our model do not hold: the variables are not all Gaussian, and are not all linearly related to their parents in the inferred DAG. The usage of `gaussCItest` as a conditional independence test is thus unsuitable for this dataset, so the inferred DAGs might not be accurate and on the whole is not reasonable.
+
+\newpage
+
+# Extra Credit
+
+With the data collected, we make some heavy assumptions about the data collected, as well as the intrinsic relationships between the variables collected, in order to do some tractable statistical modelling. If these assumptions are to be believed, then we have two possible conclusions that the data agrees with:
+
+- Strike volume is simply not affected by anything at all, and is just unpredictable.
+- Strike volume is affected by unemployment, where as unemployment goes up, so does strike volume.
+
+If the first conclusion is true, then there is nothing we can do to affect strike volume as it just happens on its own. This is entirely possible, as it could be that strikes just happen for such a wide variety of reasons that the observed variables just do not fully capture how one could effectively affect strike volume.  
+
+If the second conclusion is true, then lower unemployment rates are associated with lower strike volumes, and higher unemployment rates are associated with higher strike volumes. If this case, one can aim to indirectly lower strike volumes by lowering unemployment rate, which might make some sense as the population tends to be happier when they have jobs.
+
+However these conclusions must be taken with a grain of salt as the assumptions made are very strong. In fact when checking the assumptions, there is sufficient evidence from the data to suggest that they in fact do not hold very well, and thus all the conclusions from analysis done with these assumptions must be treated with caution.  
+
+Moving forward, it is possible that not all relevant variables in the process of strikes have been collected. Thus, more studies can be done to investigate what other possible factors there are that affect the frequency of strikes. More observations of each variable would also help in developing more complex models that require more data to give accurate results.
 
